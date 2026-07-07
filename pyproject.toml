@@ -1,0 +1,27 @@
+[project]
+name = "aps12id-sample-alignment"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "einops>=0.8",
+    "matplotlib>=3.8",
+    "numpy>=1.26,<2",
+    "pillow>=10",
+    "pycocotools>=2.0.10",
+    "psutil>=7",
+    "sam3",
+    "torch>=2.7",
+    "torchvision",
+]
+
+[tool.uv.sources]
+sam3 = { path = "sam3", editable = true }
+torch = { index = "pytorch-cu129" }
+torchvision = { index = "pytorch-cu129" }
+
+[[tool.uv.index]]
+name = "pytorch-cu129"
+url = "https://download.pytorch.org/whl/cu129"
+explicit = true
