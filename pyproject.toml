@@ -6,14 +6,17 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "einops>=0.8",
+    "fastapi>=0.139.0",
     "matplotlib>=3.8",
     "numpy>=1.26,<2",
     "pillow>=10",
     "pycocotools>=2.0.10",
     "psutil>=7",
+    "python-multipart>=0.0.32",
     "sam3",
     "torch>=2.7",
     "torchvision",
+    "uvicorn[standard]>=0.51.0",
 ]
 
 [tool.uv.sources]
@@ -25,3 +28,13 @@ torchvision = { index = "pytorch-cu129" }
 name = "pytorch-cu129"
 url = "https://download.pytorch.org/whl/cu129"
 explicit = true
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
