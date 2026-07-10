@@ -142,3 +142,16 @@ def test_convenience_endpoints_override_prompt_and_threshold() -> None:
     assert segmenter.calls[-1]["prompt"] == "metal_probe"
     assert segmenter.calls[-1]["confidence_threshold"] == 0.5
 
+
+def test_segment_12id_samh_holes_overrides_prompt_and_threshold() -> None:
+    client, segmenter = _client()
+
+    response = client.post(
+        "/segment_12id_samh_holes",
+        files={"image_file": ("image.png", _png_bytes(), "image/png")},
+        data={"prompt": "ignored", "confidence_threshold": "0.9"},
+    )
+
+    assert response.status_code == 200
+    assert segmenter.calls[-1]["prompt"] == "hole"
+    assert segmenter.calls[-1]["confidence_threshold"] == 0.5

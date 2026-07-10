@@ -88,6 +88,10 @@ def create_app(segmenter: Any | None = None) -> FastAPI:
     async def segment_12id_samv_holes(request: Request) -> SegmentResponse:
         return await run_segment(request, forced_prompt="hole", forced_threshold=0.5)
 
+    @app.post("/segment_12id_samh_holes", response_model=SegmentResponse)
+    async def segment_12id_samh_holes(request: Request) -> SegmentResponse:
+        return await run_segment(request, forced_prompt="hole", forced_threshold=0.5)
+
     @app.post("/segment_12id_samv_beam_tube", response_model=SegmentResponse)
     async def segment_12id_samv_beam_tube(request: Request) -> SegmentResponse:
         return await run_segment(

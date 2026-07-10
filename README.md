@@ -59,6 +59,7 @@ All segmentation endpoints are `POST` requests:
 
 - `/segment`
 - `/segment_12id_samv_holes`
+- `/segment_12id_samh_holes`
 - `/segment_12id_samv_beam_tube`
 
 `/segment` requires one image source and at least one prompt source:
@@ -78,6 +79,7 @@ The convenience endpoints use the same image input format but force the prompt
 and confidence threshold:
 
 - `/segment_12id_samv_holes`: `prompt="hole"`, `confidence_threshold=0.5`
+- `/segment_12id_samh_holes`: `prompt="hole"`, `confidence_threshold=0.5`
 - `/segment_12id_samv_beam_tube`: `prompt="metal_probe"`,
   `confidence_threshold=0.5`
 
