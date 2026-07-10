@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 from contextlib import nullcontext
+import math
+from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from PIL import Image
@@ -38,6 +40,37 @@ def inference_context(device: str):
     if device == "cuda":
         return torch.autocast(device_type="cuda", dtype=torch.bfloat16)
     return nullcontext()
+
+
+def show_segmentation_results(
+    original: Image.Image,
+    preview: Image.Image,
+    masks: list[Image.Image],
+    scores: list[float],
+) -> None:
+    panels = [("Original", original), ("Preview", preview)]
+    for index, mask in enumerate(masks):
+        score = scores[index] if index < len(scores) else None
+        title = f"Mask {index}"
+        if score is not None:
+            title = f"{title} score={score:.3f}"
+        panels.append((title, mask))
+
+    columns = min(4, len(panels))
+    rows = math.ceil(len(panels) / columns)
+    fig, axes = plt.subplots(rows, columns, figsize=(4 * columns, 4 * rows))
+    axes_list = list(axes.flat) if hasattr(axes, "flat") else [axes]
+
+    for ax, (title, image) in zip(axes_list, panels):
+        ax.imshow(image)
+        ax.set_title(title)
+        ax.set_axis_off()
+
+    for ax in axes_list[len(panels) :]:
+        ax.set_axis_off()
+
+    fig.tight_layout()
+    plt.show()
 
 
 def save_segmentation_outputs(

@@ -8,6 +8,7 @@ from sam3_common import (
     inference_context,
     load_image,
     save_segmentation_outputs,
+    show_segmentation_results,
 )
 
 
@@ -37,6 +38,11 @@ def parse_args() -> argparse.Namespace:
         choices=("auto", "cuda", "cpu"),
         help="Inference device.",
     )
+    parser.add_argument(
+        "--show",
+        action="store_true",
+        help="Show the preview and mask images after segmentation.",
+    )
     return parser.parse_args()
 
 
@@ -52,6 +58,14 @@ def main() -> None:
     print(f"Saved overlay to {args.output}")
     print(f"Saved masks to {args.output.with_suffix('')}")
     print(f"Saved metadata to {args.output.with_suffix('.txt')}")
+    if args.show:
+        scores = output["scores"].detach().float().cpu().tolist()
+        mask_dir = args.output.with_suffix("")
+        masks = [
+            load_image(mask_dir / f"mask_{index:03d}.png")
+            for index in range(len(scores))
+        ]
+        show_segmentation_results(image, load_image(args.output), masks, scores)
 
 
 if __name__ == "__main__":

@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import base64
 import json
-import math
 import mimetypes
 import urllib.error
 import urllib.request
@@ -12,8 +11,8 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-import matplotlib.pyplot as plt
 from PIL import Image
+from sam3_common import show_segmentation_results
 
 
 def parse_args() -> argparse.Namespace:
@@ -134,31 +133,8 @@ def show_response(image_path: Path, response: dict[str, Any]) -> None:
     original = Image.open(image_path).convert("RGB")
     preview = decode_png_payload(response["preview"])
     masks = [decode_png_payload(mask) for mask in response["masks"]]
-    metadata = response["mask_metadata"]
-
-    panels = [("Original", original), ("Preview", preview)]
-    for index, mask in enumerate(masks):
-        score = metadata[index]["score"] if index < len(metadata) else None
-        title = f"Mask {index}"
-        if score is not None:
-            title = f"{title} score={score:.3f}"
-        panels.append((title, mask))
-
-    columns = min(4, len(panels))
-    rows = math.ceil(len(panels) / columns)
-    fig, axes = plt.subplots(rows, columns, figsize=(4 * columns, 4 * rows))
-    axes_list = list(axes.flat) if hasattr(axes, "flat") else [axes]
-
-    for ax, (title, image) in zip(axes_list, panels):
-        ax.imshow(image)
-        ax.set_title(title)
-        ax.set_axis_off()
-
-    for ax in axes_list[len(panels) :]:
-        ax.set_axis_off()
-
-    fig.tight_layout()
-    plt.show()
+    scores = [item["score"] for item in response["mask_metadata"]]
+    show_segmentation_results(original, preview, masks, scores)
 
 
 def main() -> None:
