@@ -78,8 +78,8 @@ provided, the other coordinate is required.
 The convenience endpoints use the same image input format but force the prompt
 and confidence threshold:
 
-- `/segment_12id_samv_holes`: `prompt="hole"`, `confidence_threshold=0.5`
-- `/segment_12id_samh_holes`: `prompt="hole"`, `confidence_threshold=0.5`
+- `/segment_12id_samv_holes`: `prompt="hole"`, `confidence_threshold=0.3`
+- `/segment_12id_samh_holes`: `prompt="hole"`, `confidence_threshold=0.3`
 - `/segment_12id_samv_beam_tube`: `prompt="metal_probe"`,
   `confidence_threshold=0.5`
 
@@ -157,6 +157,27 @@ uv run python scripts/query_segmentation_server.py /path/to/image.png \
 ```
 
 Use `--host`, `--port`, or `--url` to target a non-default server.
+
+## Local Segmentation Scripts
+
+Run text-prompt segmentation locally with:
+
+```bash
+uv run python scripts/segment_with_prompt.py /path/to/image.png "hole"
+```
+
+Run point-prompt segmentation with explicit coordinates:
+
+```bash
+uv run python scripts/segment_with_mouse_click.py /path/to/image.png \
+  --x 320 \
+  --y 240
+```
+
+If `--x` and `--y` are omitted, the point-prompt script opens an interactive
+window for selecting the point. Add `--show` to either script to display the
+original image, overlay preview, and generated masks with their confidence
+scores after segmentation. The output files are still saved normally.
 
 ## Response Format
 

@@ -154,4 +154,4 @@ def test_segment_12id_samh_holes_overrides_prompt_and_threshold() -> None:
 
     assert response.status_code == 200
     assert segmenter.calls[-1]["prompt"] == "hole"
-    assert segmenter.calls[-1]["confidence_threshold"] == 0.5
+    assert segmenter.calls[-1]["confidence_threshold"] == 0.3
