@@ -85,6 +85,33 @@ committed (too large) — it stays under `~/aps12id_seg_finetune/runs/gcp_r1/`
 on sentosa; the branch push message links to it with the val numbers so
 Ming can pull it separately.
 
+### Round 1 results (2026-07-16)
+
+Split: 526 images (473 train / 53 val, 4975 annotations). Ran 50 epochs
+on sentosa H200 idx 1 at bs=1, bf16 autocast, ~130s/epoch (~108 min
+total). Trained 32.7M / 840.5M params (3.9%).
+
+| checkpoint          | hole IoU | sample IoU | val_loss |
+|---------------------|----------|------------|----------|
+| baseline (vanilla)  | 0.583    | 0.000      | 295.12   |
+| fine-tuned best.pt  | 0.926    | 0.536      | 150.15 (train) / 161.58 (rerun) |
+| fine-tuned last.pt  | 0.923    | **0.606**  | 181.83   |
+
+Vanilla SAM3 already sees "hole" from the text prompt but cannot locate
+"sample" at all (0.0% IoU). Fine-tuning learns the sample geometry from
+scratch and lifts hole segmentation by 34 percentage points.
+
+`best.pt` was selected by val_loss (epoch 31) but `last.pt` (epoch 50)
+gives noticeably higher sample IoU with almost identical hole IoU —
+val_loss and per-category IoU disagree because the loss mixes bbox / ce /
+mask / dice components and sample instances are heavily outnumbered by
+holes (1265 vs 3710 annotations). Recommend `last.pt` for deployment
+unless downstream evaluation prefers the best-loss checkpoint.
+
+Both live at `~/aps12id_seg_finetune/runs/gcp_r1/{best,last}.pt` on
+sentosa (3.2 GB each). `metrics.jsonl` in the same directory has the
+per-epoch train/val trace.
+
 Round 2 (combined GCP + capillary) waits on Sam finishing capillary
 annotations in LS. It re-fine-tunes from the SAM3 **base** checkpoint, not
 from round 1's `best.pt`, to avoid GCP-specialization bias when learning
