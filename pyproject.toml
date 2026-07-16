@@ -24,6 +24,7 @@ dependencies = [
     "fvcore>=0.1.5.post20221221",
     "fairscale>=0.4.13",
     "scikit-image>=0.26.0",
+    "pyyaml>=6.0",
 ]
 
 [tool.uv.sources]

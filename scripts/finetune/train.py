@@ -32,6 +32,7 @@ _prefer_submodule_sam3_package()
 
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
+import yaml  # noqa: E402
 from torch.utils.data import DataLoader  # noqa: E402
 
 from scripts.finetune.coco_schema import CATEGORY_ID_BY_NAME  # noqa: E402
@@ -49,8 +50,62 @@ IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
-def parse_args() -> argparse.Namespace:
+def _load_config(parser: argparse.ArgumentParser, config_path: Path) -> None:
+    with config_path.open() as f:
+        config = yaml.safe_load(f)
+
+    if config is None:
+        config = {}
+    if not isinstance(config, dict):
+        parser.error(f"config file must contain a mapping: {config_path}")
+
+    actions_by_key = {}
+    for action in parser._actions:
+        actions_by_key[action.dest] = action
+        actions_by_key.update(
+            (option.removeprefix("--"), action)
+            for option in action.option_strings
+            if option.startswith("--")
+        )
+
+    unknown = sorted(set(config) - set(actions_by_key))
+    if unknown:
+        parser.error(f"unknown config field(s): {', '.join(unknown)}")
+
+    defaults = {}
+    configured_actions = set()
+    for key, value in config.items():
+        action = actions_by_key[key]
+        if action.dest == "config":
+            parser.error("the config field cannot set --config")
+        if action in configured_actions:
+            parser.error(f"config contains multiple fields for {action.dest}")
+        configured_actions.add(action)
+
+        if isinstance(action, argparse._StoreTrueAction):
+            if not isinstance(value, bool):
+                parser.error(f"config field {key} must be a boolean")
+        elif value is not None and action.type is not None:
+            try:
+                value = action.type(value)
+            except (TypeError, ValueError) as exc:
+                parser.error(f"invalid value for config field {key}: {exc}")
+
+        if action.required and value is None:
+            parser.error(f"config field {key} cannot be null")
+        action.required = False
+        defaults[action.dest] = value
+
+    parser.set_defaults(**defaults)
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    config_parser = argparse.ArgumentParser(add_help=False)
+    config_parser.add_argument("--config", type=Path)
+    config_args, _ = config_parser.parse_known_args(argv)
+
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", type=Path, help="YAML file containing argument defaults")
     parser.add_argument("--coco", type=Path, required=True, help="path to canonical GCP coco.json")
     parser.add_argument("--image-root", type=Path, required=True, help="image root the coco file_names are relative to")
     parser.add_argument("--base-checkpoint", type=Path, required=True, help="path to base sam3.pt")
@@ -65,7 +120,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--eval-only", action="store_true", help="skip training; just eval --resume (or --base-checkpoint) on val split")
     parser.add_argument("--resume", type=Path, default=None, help="checkpoint to load before training/eval")
-    return parser.parse_args()
+    if config_args.config is not None:
+        _load_config(parser, config_args.config)
+    return parser.parse_args(argv)
 
 
 def _build_transforms(training: bool, resolution: int):
