@@ -19,6 +19,8 @@ import json
 import logging
 import sys
 import time
+from contextlib import contextmanager
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -120,6 +122,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--eval-only", action="store_true", help="skip training; just eval --resume (or --base-checkpoint) on val split")
     parser.add_argument("--resume", type=Path, default=None, help="checkpoint to load before training/eval")
+    parser.add_argument("--enable-mlflow", action="store_true")
+    parser.add_argument("--mlflow-base-uri", default=None, help="MLflow tracking server URI")
+    parser.add_argument("--mlflow-experiment-name", default=None)
+    parser.add_argument("--mlflow-run-name", default=None, help="defaults to the current timestamp")
     if config_args.config is not None:
         _load_config(parser, config_args.config)
     return parser.parse_args(argv)
@@ -473,10 +479,33 @@ def _append_metrics(out_dir: Path, entry: dict[str, Any]) -> None:
         f.write(json.dumps(entry) + "\n")
 
 
-def main() -> None:
-    args = parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    log = logging.getLogger("train")
+@contextmanager
+def _mlflow_run(args: argparse.Namespace):
+    if not args.enable_mlflow:
+        yield
+        return
+
+    try:
+        import mlflow
+    except ImportError as exc:
+        raise RuntimeError(
+            "MLflow is enabled but not installed; run `uv sync --extra mlflow`"
+        ) from exc
+
+    if args.mlflow_base_uri is not None:
+        mlflow.set_tracking_uri(args.mlflow_base_uri)
+    if args.mlflow_experiment_name is not None:
+        mlflow.set_experiment(args.mlflow_experiment_name)
+
+    run_name = args.mlflow_run_name or datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
+    settings = {key: str(value) for key, value in vars(args).items()}
+    settings["mlflow_run_name"] = run_name
+    with mlflow.start_run(run_name=run_name):
+        mlflow.log_params(settings)
+        yield
+
+
+def _train(args: argparse.Namespace, log: logging.Logger) -> None:
 
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -545,6 +574,14 @@ def main() -> None:
     ious = per_category_iou(model, val_coco_path, args.image_root, device)
     _append_metrics(args.out_dir, {"mode": "final_iou", "per_category_iou": ious})
     log.info("final IoU: %s", ious)
+
+
+def main() -> None:
+    args = parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    log = logging.getLogger("train")
+    with _mlflow_run(args):
+        _train(args, log)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,11 @@
+import re
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from scripts.finetune.train import parse_args
+from scripts.finetune.train import _mlflow_run, parse_args
 
 
 def test_config_supplies_required_and_optional_arguments(tmp_path: Path) -> None:
@@ -63,3 +66,71 @@ def test_unknown_config_field_is_rejected(tmp_path: Path, capsys: pytest.Capture
         parse_args(["--config", str(config)])
 
     assert "unknown config field(s): unknown_field" in capsys.readouterr().err
+
+
+def test_mlflow_arguments() -> None:
+    args = parse_args(
+        [
+            "--coco",
+            "coco.json",
+            "--image-root",
+            "images",
+            "--base-checkpoint",
+            "sam3.pt",
+            "--out-dir",
+            "output",
+            "--enable-mlflow",
+            "--mlflow-base-uri",
+            "http://mlflow:5000",
+            "--mlflow-experiment-name",
+            "finetune",
+            "--mlflow-run-name",
+            "test-run",
+        ]
+    )
+
+    assert args.enable_mlflow is True
+    assert args.mlflow_base_uri == "http://mlflow:5000"
+    assert args.mlflow_experiment_name == "finetune"
+    assert args.mlflow_run_name == "test-run"
+
+
+def test_mlflow_run_uses_timestamp_and_logs_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {}
+
+    class FakeRun:
+        def __enter__(self):
+            calls["entered"] = True
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            calls["exit_type"] = exc_type
+
+    def start_run(*, run_name):
+        calls["run_name"] = run_name
+        return FakeRun()
+
+    fake_mlflow = SimpleNamespace(
+        set_tracking_uri=lambda uri: calls.setdefault("tracking_uri", uri),
+        set_experiment=lambda name: calls.setdefault("experiment", name),
+        start_run=start_run,
+        log_params=lambda params: calls.setdefault("params", params),
+    )
+    monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
+    args = SimpleNamespace(
+        enable_mlflow=True,
+        mlflow_base_uri="http://mlflow:5000",
+        mlflow_experiment_name="finetune",
+        mlflow_run_name=None,
+        coco=Path("coco.json"),
+    )
+
+    with _mlflow_run(args):
+        pass
+
+    assert calls["tracking_uri"] == "http://mlflow:5000"
+    assert calls["experiment"] == "finetune"
+    assert re.fullmatch(r"\d{8}-\d{6}", calls["run_name"])
+    assert calls["params"]["coco"] == "coco.json"
+    assert calls["params"]["mlflow_run_name"] == calls["run_name"]
+    assert calls["entered"] is True
+    assert calls["exit_type"] is None
