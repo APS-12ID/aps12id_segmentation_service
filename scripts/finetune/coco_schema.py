@@ -1,9 +1,9 @@
 """Canonical COCO schema for the aps12id SAM3 finetune.
 
-Every producer in this pipeline (LS export, SAM3 bootstrap, CVAT round-trip)
-targets this schema so the downstream SAM3 finetune loader has one shape to
-read. Masks are RLE-encoded (COCO compressed RLE) for pixel-faithful storage
-of thin structures (slits, capillary tubes) that polygons would degrade.
+Every producer in this pipeline (LS export, SAM3 bootstrap) targets this
+schema so the downstream SAM3 finetune loader has one shape to read. Masks
+are RLE-encoded (COCO compressed RLE) for pixel-faithful storage of thin
+structures (slits, capillary tubes) that polygons would degrade.
 """
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 from pycocotools import mask as mask_utils
 
-# Stable category IDs. Keep these frozen across runs — CVAT and downstream
-# consumers key off IDs, not names, when merging COCOs.
+# Stable category IDs. Keep these frozen across runs — downstream consumers
+# key off IDs, not names, when merging COCOs.
 CATEGORIES: list[dict[str, Any]] = [
     {"id": 1, "name": "hole", "supercategory": "gcp"},
     {"id": 2, "name": "sample", "supercategory": "gcp"},

@@ -226,7 +226,7 @@ def segment_capillary(
     """Return list of (category_id, mask, score) for one capillary image.
 
     Text-only per Ming: no coordinate prompt. Emits both slit and
-    capillary_tube candidates; the human triages in CVAT.
+    capillary_tube candidates; the human triages in Label Studio.
     """
     out: list[tuple[int, np.ndarray, float]] = []
     for prompt, threshold in CAPILLARY_PROMPTS.items():

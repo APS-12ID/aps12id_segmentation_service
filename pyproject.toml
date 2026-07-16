@@ -19,7 +19,6 @@ dependencies = [
     "uvicorn[standard]>=0.51.0",
     "opencv-python-headless>=4.11.0.86",
     "tqdm>=4.68.4",
-    "cvat-sdk>=2.28.0",
     "torchmetrics>=1.9.0",
     "scipy>=1.17.1",
     "fvcore>=0.1.5.post20221221",

@@ -3,11 +3,10 @@
 Preserves work Sam did in the LS UI (both his manual labels and any edits
 he made on top of the SAM3-bulk-imported polygons) by reading the LS sqlite
 directly. Percent-coordinate polygons are rasterized to masks and stored as
-COCO RLE — that's the same shape SAM3 finetune expects and matches whatever
-CVAT round-trips later.
+COCO RLE — that's the shape the SAM3 finetune loader expects.
 
-Only handles the two GCP categories (hole/sample). Capillary categories are
-not present in LS; they come from sam3_bootstrap on the new dataset.
+Handles all four categories (hole, sample, slit, capillary tube). Ming
+co-annotates in the same LS project.
 """
 from __future__ import annotations
 
