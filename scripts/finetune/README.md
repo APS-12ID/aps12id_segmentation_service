@@ -26,9 +26,6 @@ Two plate types, four categories, one dataset:
 - `sam3_bootstrap.py` — vanilla SAM3 pseudo-labels for either plate type.
   `--plate-type gcp` reproduces the existing samH/V hole→sample pipeline.
   `--plate-type capillary` uses text-only prompts for slit + capillary tube.
-- `cvat_import.py` — creates a CVAT project + one task per plate type and
-  uploads images + COCO annotations. Idempotent by name; `--replace` to
-  recreate.
 - `dataset.py` — `GcpCocoDataset`. Reads a canonical COCO and yields one
   `Sample` per (image, category) pair with ≥1 instance. Deterministic
   train/val split by sorted image_id. Consumed by `train.py`.
