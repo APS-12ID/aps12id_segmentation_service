@@ -29,6 +29,66 @@ Two plate types, four categories, one dataset:
 - `cvat_import.py` — creates a CVAT project + one task per plate type and
   uploads images + COCO annotations. Idempotent by name; `--replace` to
   recreate.
+- `dataset.py` — `GcpCocoDataset`. Reads a canonical COCO and yields one
+  `Sample` per (image, category) pair with ≥1 instance. Deterministic
+  train/val split by sorted image_id. Consumed by `train.py`.
+- `train.py` — decoder-only fine-tune of SAM3. Freezes
+  `backbone.vision_backbone.*` and `backbone.language_backbone.*`, trains
+  the segmentation head + transformer decoder with dice+focal mask loss
+  (weights from Meta's `roboflow_v100_full_ft_100_images.yaml` commented
+  block: `loss_mask=200.0`, `loss_dice=10.0`). Runs a per-epoch val loop
+  computing per-category IoU; saves `best.pt` on improvement.
+
+## Round 1: GCP decoder fine-tune
+
+Round 1 validates the full pipeline end-to-end on the ~200 GCP hole/sample
+annotations Sam has in Label Studio, before annotating capillary. Ming
+approved the recipe: freeze both encoders, train the mask decoder, standard
+losses. Runs on sentosa's H200 idx 1 (`CUDA_VISIBLE_DEVICES=1`, ~26 GB free
+per `~/.claude/projects/-Users-haskels/memory/reference_sentosa.md`).
+
+```bash
+cd ~/aps12id_seg_finetune/repo
+git checkout finetune-pipeline && git pull
+uv sync
+
+# 1. Refresh the GCP COCO from the current LS state (206+ annotations)
+uv run python -m scripts.finetune.ls_to_coco \
+    --db ~/aps12id_seg_finetune/label_studio/data/label_studio.sqlite3 \
+    --project-id 1 \
+    --image-root ~/aps12id_seg_finetune/data/raw \
+    --out ~/aps12id_seg_finetune/data/labels/canonical/gcp.coco.json
+
+# 2. Baseline: eval vanilla SAM3 on the val split to establish a floor
+CUDA_VISIBLE_DEVICES=1 uv run python -m scripts.finetune.train \
+    --coco       ~/aps12id_seg_finetune/data/labels/canonical/gcp.coco.json \
+    --image-root ~/aps12id_seg_finetune/data/raw \
+    --base-checkpoint ~/aps12id_seg_finetune/checkpoints/sam3.pt \
+    --out-dir    ~/aps12id_seg_finetune/runs/gcp_r1_baseline \
+    --eval-only
+
+# 3. Fine-tune (50 epochs, ~20–45 min on H200)
+CUDA_VISIBLE_DEVICES=1 uv run python -m scripts.finetune.train \
+    --coco       ~/aps12id_seg_finetune/data/labels/canonical/gcp.coco.json \
+    --image-root ~/aps12id_seg_finetune/data/raw \
+    --base-checkpoint ~/aps12id_seg_finetune/checkpoints/sam3.pt \
+    --out-dir    ~/aps12id_seg_finetune/runs/gcp_r1 \
+    --epochs 50
+
+# Watch per-epoch val IoU
+tail -f ~/aps12id_seg_finetune/runs/gcp_r1/metrics.jsonl
+```
+
+Success criterion: per-category val IoU (hole, sample) beats the baseline
+from step 2 on the same held-out split. Fine-tuned `best.pt` is not
+committed (too large) — it stays under `~/aps12id_seg_finetune/runs/gcp_r1/`
+on sentosa; the branch push message links to it with the val numbers so
+Ming can pull it separately.
+
+Round 2 (combined GCP + capillary) waits on Sam finishing capillary
+annotations in LS. It re-fine-tunes from the SAM3 **base** checkpoint, not
+from round 1's `best.pt`, to avoid GCP-specialization bias when learning
+capillary geometry.
 
 ## Operator quick-start
 
