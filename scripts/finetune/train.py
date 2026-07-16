@@ -317,7 +317,10 @@ def train_one_epoch(model, loader, optimizer, loss_wrapper, device, autocast_dty
 
 @torch.no_grad()
 def validate(model, loader, loss_wrapper, device, autocast_dtype):
-    model.eval()
+    # Keep model in train mode so its Hungarian matcher runs inside forward and
+    # populates out["indices"] for Sam3LossWrapper. no_grad prevents updates.
+    # The frozen encoders don't contain BN/Dropout that would misbehave here.
+    model.train()
     running = 0.0
     n = 0
     for batch_dict in loader:
@@ -344,6 +347,10 @@ def per_category_iou(
     """
     from sam3.model.sam3_image_processor import Sam3Processor
 
+    # Sam3Processor drives the deployed inference path — needs the model in eval
+    # mode. validate() leaves it in train mode so its Hungarian matcher runs;
+    # flip it back here.
+    model.eval()
     processor = Sam3Processor(model, device=device, confidence_threshold=confidence_threshold)
 
     per_cat_iou: dict[str, list[float]] = {name: [] for name in GCP_CATEGORIES}
