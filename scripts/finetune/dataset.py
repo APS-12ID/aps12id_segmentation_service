@@ -63,6 +63,31 @@ def _split_image_ids(
     raise ValueError(f"split must be 'train' or 'val'; got {split!r}")
 
 
+def split_coco_by_image_id(coco: dict[str, Any], val_fraction: float) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Split a canonical COCO into (train_coco, val_coco) by sorted image_id.
+
+    Deterministic: the last ``val_fraction`` of ``sorted(image_ids)`` becomes val;
+    the rest is train. Categories are duplicated verbatim into both outputs so
+    downstream loaders see a stable category schema regardless of split.
+    """
+    if not 0.0 <= val_fraction < 1.0:
+        raise ValueError(f"val_fraction must be in [0, 1); got {val_fraction}")
+    all_ids = [img["id"] for img in coco["images"]]
+    val_ids = _split_image_ids(all_ids, val_fraction, "val")
+    train_ids = set(all_ids) - val_ids
+
+    def _subset(image_ids: set[int]) -> dict[str, Any]:
+        return {
+            "info": coco.get("info", {}),
+            "licenses": coco.get("licenses", []),
+            "categories": list(coco["categories"]),
+            "images": [img for img in coco["images"] if img["id"] in image_ids],
+            "annotations": [a for a in coco["annotations"] if a["image_id"] in image_ids],
+        }
+
+    return _subset(train_ids), _subset(val_ids)
+
+
 class GcpCocoDataset:
     """One sample per (image, category) pair with at least one annotation.
 
