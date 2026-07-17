@@ -21,7 +21,7 @@ from typing import Any
 from PIL import Image
 
 from .coco_schema import (
-    CATEGORY_ID_BY_NAME,
+    LS_LABEL_TO_CATEGORY_ID,
     annotation_id_from,
     empty_coco,
     image_id_from_path,
@@ -122,16 +122,32 @@ def migrate(
         wrote_any = False
         for idx, region in enumerate(regions):
             value = region.get("value", {})
-            labels = value.get("polygonlabels") or []
-            if not labels:
+            poly_labels = value.get("polygonlabels") or []
+            rect_labels = value.get("rectanglelabels") or []
+            if poly_labels:
+                label = poly_labels[0]
+                points = value.get("points") or []
+            elif rect_labels:
+                label = rect_labels[0]
+                # LS rectangle geometry is (x, y, width, height) in percent
+                # of image dims. Convert to a 4-corner polygon so the rest
+                # of the pipeline treats it identically to polygon regions.
+                try:
+                    x = float(value["x"])
+                    y = float(value["y"])
+                    rw = float(value["width"])
+                    rh = float(value["height"])
+                except (KeyError, TypeError, ValueError):
+                    counts["regions_dropped_empty"] += 1
+                    continue
+                points = [(x, y), (x + rw, y), (x + rw, y + rh), (x, y + rh)]
+            else:
                 counts["regions_dropped_bad_label"] += 1
                 continue
-            label = labels[0]
-            cat_id = CATEGORY_ID_BY_NAME.get(label)
+            cat_id = LS_LABEL_TO_CATEGORY_ID.get(label)
             if cat_id is None:
                 counts["regions_dropped_bad_label"] += 1
                 continue
-            points = value.get("points") or []
             if len(points) < 3:
                 counts["regions_dropped_empty"] += 1
                 continue

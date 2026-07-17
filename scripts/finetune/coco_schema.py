@@ -27,6 +27,26 @@ CATEGORIES: list[dict[str, Any]] = [
 
 CATEGORY_ID_BY_NAME: dict[str, int] = {c["name"]: c["id"] for c in CATEGORIES}
 
+# Label Studio class values are shape-suffixed so annotators can see at a
+# glance which drawing tool a label belongs to (e.g. slit_polygon vs
+# slit_rectangle). Downstream training uses one canonical id per physical
+# class — the shape suffix is stripped on ingest via this mapping.
+LS_LABEL_TO_CATEGORY_ID: dict[str, int] = {
+    # New shape-suffixed forms (LS project #1 label config, post-2026-07-17).
+    "hole_polygon": 1,
+    "sample_polygon": 2,
+    "slit_polygon": 3,
+    "slit_rectangle": 3,
+    "capillary_tube_polygon": 4,
+    "capillary_tube_rectangle": 4,
+    # Bare forms — pre-rename annotations. Kept so historical exports still
+    # migrate. Remove once every task_completion.result JSON has been rewritten.
+    "hole": 1,
+    "sample": 2,
+    "slit": 3,
+    "capillary tube": 4,
+}
+
 
 def image_id_from_path(image_path: Path, image_root: Path) -> int:
     """Deterministic 32-bit image id from repo-relative path.
