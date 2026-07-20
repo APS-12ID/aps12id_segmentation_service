@@ -1,12 +1,22 @@
+import logging
+import random
 import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
+import torch
 
 from scripts.finetune.coco_schema import CATEGORIES
-from scripts.finetune.train import COCO_CATEGORY_NAMES, _mlflow_run, parse_args
+from scripts.finetune.train import (
+    COCO_CATEGORY_NAMES,
+    _restore_checkpoint,
+    _save_checkpoint,
+    _mlflow_run,
+    parse_args,
+)
 
 
 def test_evaluation_categories_come_from_coco_schema() -> None:
@@ -162,3 +172,41 @@ def test_mlflow_run_uses_timestamp_and_logs_settings(monkeypatch: pytest.MonkeyP
     assert calls["params"]["mlflow_run_name"] == calls["run_name"]
     assert calls["entered"] is True
     assert calls["exit_type"] is None
+
+
+def test_checkpoint_restores_optimizer_progress_and_rng_state(tmp_path: Path) -> None:
+    random.seed(1)
+    np.random.seed(2)
+    torch.manual_seed(3)
+    model = torch.nn.Linear(2, 1)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.01)
+    optimizer.zero_grad()
+    model(torch.ones(1, 2)).sum().backward()
+    optimizer.step()
+
+    checkpoint_path = tmp_path / "checkpoint.pt"
+    _save_checkpoint(checkpoint_path, model, optimizer, epoch=4, val_loss=1.5, best_val=1.25)
+    expected_random = random.random()
+    expected_numpy = np.random.random()
+    expected_torch = torch.rand(1)
+
+    restored_model = torch.nn.Linear(2, 1)
+    restored_optimizer = torch.optim.AdamW(restored_model.parameters(), lr=0.01)
+    start_epoch, best_val = _restore_checkpoint(
+        checkpoint_path,
+        restored_model,
+        restored_optimizer,
+        logging.getLogger("test"),
+    )
+
+    assert start_epoch == 5
+    assert best_val == 1.25
+    restored_optimizer_state = restored_optimizer.state_dict()["state"]
+    original_optimizer_state = optimizer.state_dict()["state"]
+    assert restored_optimizer_state.keys() == original_optimizer_state.keys()
+    for parameter_id, parameter_state in original_optimizer_state.items():
+        for name, value in parameter_state.items():
+            assert torch.equal(restored_optimizer_state[parameter_id][name], value)
+    assert random.random() == expected_random
+    assert np.random.random() == expected_numpy
+    assert torch.equal(torch.rand(1), expected_torch)

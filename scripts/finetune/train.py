@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import random
 import sys
 import time
 from contextlib import contextmanager
@@ -210,6 +211,18 @@ def _build_model(base_checkpoint: Path, device: str):
         load_from_HF=False,
     )
     return model
+
+
+def _build_optimizer(
+    model: torch.nn.Module,
+    lr: float,
+    weight_decay: float,
+) -> torch.optim.Optimizer:
+    return torch.optim.AdamW(
+        [parameter for parameter in model.parameters() if parameter.requires_grad],
+        lr=lr,
+        weight_decay=weight_decay,
+    )
 
 
 def _freeze_encoders(model: torch.nn.Module) -> tuple[int, int]:
@@ -479,6 +492,89 @@ def _append_metrics(out_dir: Path, entry: dict[str, Any]) -> None:
         f.write(json.dumps(entry) + "\n")
 
 
+def _capture_rng_state() -> dict[str, Any]:
+    numpy_state = np.random.get_state()
+    return {
+        "python": random.getstate(),
+        "numpy": {
+            "bit_generator": numpy_state[0],
+            "state": torch.from_numpy(numpy_state[1].copy()),
+            "position": numpy_state[2],
+            "has_gauss": numpy_state[3],
+            "cached_gaussian": numpy_state[4],
+        },
+        "torch_cpu": torch.get_rng_state(),
+        "torch_cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
+    }
+
+
+def _restore_rng_state(state: dict[str, Any]) -> None:
+    random.setstate(state["python"])
+    numpy_state = state["numpy"]
+    np.random.set_state(
+        (
+            numpy_state["bit_generator"],
+            numpy_state["state"].cpu().numpy(),
+            numpy_state["position"],
+            numpy_state["has_gauss"],
+            numpy_state["cached_gaussian"],
+        )
+    )
+    torch.set_rng_state(state["torch_cpu"].cpu())
+    if torch.cuda.is_available() and state["torch_cuda"] is not None:
+        torch.cuda.set_rng_state_all([rng_state.cpu() for rng_state in state["torch_cuda"]])
+
+
+def _save_checkpoint(
+    path: Path,
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    epoch: int,
+    val_loss: float,
+    best_val: float,
+) -> None:
+    torch.save(
+        {
+            "checkpoint_version": 2,
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "epoch": epoch,
+            "next_epoch": epoch + 1,
+            "val_loss": val_loss,
+            "best_val": best_val,
+            "rng_state": _capture_rng_state(),
+        },
+        path,
+    )
+
+
+def _restore_checkpoint(
+    path: Path,
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    log: logging.Logger,
+) -> tuple[int, float]:
+    checkpoint = torch.load(path, map_location="cpu")
+    model.load_state_dict(checkpoint["model"] if "model" in checkpoint else checkpoint, strict=False)
+    log.info("loaded model weights from %s", path)
+
+    start_epoch = 0
+    best_val = float("inf")
+    full_state_keys = {"optimizer", "next_epoch", "best_val", "rng_state"}
+    if full_state_keys.issubset(checkpoint):
+        optimizer.load_state_dict(checkpoint["optimizer"])
+        start_epoch = int(checkpoint["next_epoch"])
+        best_val = float(checkpoint["best_val"])
+        _restore_rng_state(checkpoint["rng_state"])
+        log.info("resuming training at epoch %d with best val_loss %.4f", start_epoch, best_val)
+    else:
+        log.warning(
+            "checkpoint has no complete training state; starting optimizer and epoch count from scratch"
+        )
+
+    return start_epoch, best_val
+
+
 @contextmanager
 def _mlflow_run(args: argparse.Namespace):
     if not args.enable_mlflow:
@@ -507,6 +603,7 @@ def _mlflow_run(args: argparse.Namespace):
 
 def _train(args: argparse.Namespace, log: logging.Logger) -> None:
 
+    random.seed(args.seed)
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
@@ -521,10 +618,6 @@ def _train(args: argparse.Namespace, log: logging.Logger) -> None:
 
     log.info("loading base checkpoint: %s", args.base_checkpoint)
     model = _build_model(args.base_checkpoint, device)
-    if args.resume is not None:
-        state = torch.load(args.resume, map_location=device)
-        model.load_state_dict(state["model"] if "model" in state else state, strict=False)
-        log.info("resumed from %s", args.resume)
 
     total, trainable = _freeze_encoders(model)
     log.info("params: total=%d trainable=%d (%.2f%%)", total, trainable, 100.0 * trainable / max(total, 1))
@@ -534,8 +627,18 @@ def _train(args: argparse.Namespace, log: logging.Logger) -> None:
 
     val_dataset = _build_dataset(val_coco_path, args.image_root, args.resolution, training=False, max_ann_per_img=args.max_ann_per_img)
     val_loader = _build_dataloader(val_dataset, args.batch_size, args.num_workers, dict_key="gcp")
+    train_loader = None
+    if not args.eval_only:
+        train_dataset = _build_dataset(train_coco_path, args.image_root, args.resolution, training=True, max_ann_per_img=args.max_ann_per_img)
+        train_loader = _build_dataloader(train_dataset, args.batch_size, args.num_workers, dict_key="gcp")
 
     loss_wrapper = _build_loss(device, matcher)
+    optimizer = _build_optimizer(model, args.lr, args.weight_decay)
+
+    start_epoch = 0
+    best_val = float("inf")
+    if args.resume is not None:
+        start_epoch, best_val = _restore_checkpoint(args.resume, model, optimizer, log)
 
     if args.eval_only:
         val_loss = validate(model, val_loader, loss_wrapper, device, autocast_dtype)
@@ -545,17 +648,8 @@ def _train(args: argparse.Namespace, log: logging.Logger) -> None:
         _append_metrics(args.out_dir, entry)
         return
 
-    train_dataset = _build_dataset(train_coco_path, args.image_root, args.resolution, training=True, max_ann_per_img=args.max_ann_per_img)
-    train_loader = _build_dataloader(train_dataset, args.batch_size, args.num_workers, dict_key="gcp")
-
-    optimizer = torch.optim.AdamW(
-        [p for p in model.parameters() if p.requires_grad],
-        lr=args.lr,
-        weight_decay=args.weight_decay,
-    )
-
-    best_val = float("inf")
-    for epoch in range(args.epochs):
+    assert train_loader is not None
+    for epoch in range(start_epoch, args.epochs):
         t0 = time.time()
         train_loss = train_one_epoch(model, train_loader, optimizer, loss_wrapper, device, autocast_dtype)
         val_loss = validate(model, val_loader, loss_wrapper, device, autocast_dtype)
@@ -564,10 +658,13 @@ def _train(args: argparse.Namespace, log: logging.Logger) -> None:
         log.info("epoch %d/%d train=%.4f val=%.4f (%.1fs)", epoch + 1, args.epochs, train_loss, val_loss, elapsed)
         _append_metrics(args.out_dir, entry)
 
-        torch.save({"model": model.state_dict(), "epoch": epoch}, args.out_dir / "last.pt")
-        if val_loss < best_val:
+        is_best = val_loss < best_val
+        if is_best:
             best_val = val_loss
-            torch.save({"model": model.state_dict(), "epoch": epoch, "val_loss": val_loss}, args.out_dir / "best.pt")
+
+        _save_checkpoint(args.out_dir / "last.pt", model, optimizer, epoch, val_loss, best_val)
+        if is_best:
+            _save_checkpoint(args.out_dir / "best.pt", model, optimizer, epoch, val_loss, best_val)
             log.info("  saved best.pt (val_loss=%.4f)", val_loss)
 
     log.info("final per-category IoU eval on val split...")
