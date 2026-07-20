@@ -5,7 +5,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from scripts.finetune.train import _mlflow_run, parse_args
+from scripts.finetune.coco_schema import CATEGORIES
+from scripts.finetune.train import COCO_CATEGORY_NAMES, _mlflow_run, parse_args
+
+
+def test_evaluation_categories_come_from_coco_schema() -> None:
+    assert COCO_CATEGORY_NAMES == tuple(category["name"] for category in CATEGORIES)
 
 
 def test_config_supplies_required_and_optional_arguments(tmp_path: Path) -> None:

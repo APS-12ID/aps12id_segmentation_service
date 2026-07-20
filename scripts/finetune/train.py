@@ -37,7 +37,7 @@ import torch  # noqa: E402
 import yaml  # noqa: E402
 from torch.utils.data import DataLoader  # noqa: E402
 
-from scripts.finetune.coco_schema import CATEGORY_ID_BY_NAME  # noqa: E402
+from scripts.finetune.coco_schema import CATEGORIES  # noqa: E402
 from scripts.finetune.dataset import (  # noqa: E402
     GcpCocoDataset,
     split_coco_by_image_id,
@@ -45,8 +45,7 @@ from scripts.finetune.dataset import (  # noqa: E402
 
 
 FROZEN_PREFIXES = ("backbone.vision_backbone.", "backbone.language_backbone.")
-GCP_CATEGORIES = ("hole", "sample")
-GCP_CATEGORY_IDS = tuple(CATEGORY_ID_BY_NAME[name] for name in GCP_CATEGORIES)
+COCO_CATEGORY_NAMES = tuple(category["name"] for category in CATEGORIES)
 DEFAULT_RESOLUTION = 1008  # SAM3's vision backbone is built at 1008x1008 (see model_builder.py)
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
@@ -182,8 +181,8 @@ def _build_dataset(coco_path: Path, image_root: Path, resolution: int, training:
         multiplier=1,
         training=training,
         load_segmentation=True,
-        max_train_queries=len(GCP_CATEGORIES) + 4,
-        max_val_queries=len(GCP_CATEGORIES) + 4,
+        max_train_queries=len(COCO_CATEGORY_NAMES),
+        max_val_queries=len(COCO_CATEGORY_NAMES),
         use_caching=False,
     )
 
@@ -417,11 +416,11 @@ def per_category_iou(
     model.eval()
     processor = Sam3Processor(model, device=device, confidence_threshold=confidence_threshold)
 
-    per_cat_iou: dict[str, list[float]] = {name: [] for name in GCP_CATEGORIES}
+    per_cat_iou: dict[str, list[float]] = {name: [] for name in COCO_CATEGORY_NAMES}
     dataset = GcpCocoDataset(
         coco_path=val_coco_path,
         image_root=image_root,
-        categories=list(GCP_CATEGORIES),
+        categories=list(COCO_CATEGORY_NAMES),
         split="train",  # whole file — we already split externally
         val_fraction=0.0,
     )
