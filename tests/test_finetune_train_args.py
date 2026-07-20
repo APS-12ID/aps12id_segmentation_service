@@ -17,6 +17,7 @@ image_root: images
 base-checkpoint: sam3.pt
 out_dir: output
 lr: 0.002
+batch_size: 4
 eval_only: true
 """
     )
@@ -28,6 +29,7 @@ eval_only: true
     assert args.base_checkpoint == Path("sam3.pt")
     assert args.out_dir == Path("output")
     assert args.lr == 0.002
+    assert args.batch_size == 4
     assert args.eval_only is True
 
 
@@ -51,11 +53,14 @@ lr: 0.002
             "from-cli.json",
             "--lr",
             "0.01",
+            "--batch-size",
+            "8",
         ]
     )
 
     assert args.coco == Path("from-cli.json")
     assert args.lr == 0.01
+    assert args.batch_size == 8
 
 
 def test_unknown_config_field_is_rejected(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

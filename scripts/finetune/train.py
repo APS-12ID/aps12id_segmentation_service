@@ -10,7 +10,7 @@ The trainer reuses Meta's own data + loss modules (``Sam3ImageDataset``,
 DETR-style matching are exactly what the model expects; the training loop,
 freezing, eval, and checkpointing are ours.
 
-Run on sentosa H200; batch size 1; bf16 autocast (matches inference).
+Run on sentosa H200; batch size defaults to 1; bf16 autocast (matches inference).
 """
 from __future__ import annotations
 
@@ -119,6 +119,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--resolution", type=int, default=DEFAULT_RESOLUTION)
     parser.add_argument("--max-ann-per-img", type=int, default=64)
+    parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--eval-only", action="store_true", help="skip training; just eval --resume (or --base-checkpoint) on val split")
     parser.add_argument("--resume", type=Path, default=None, help="checkpoint to load before training/eval")
@@ -187,12 +188,12 @@ def _build_dataset(coco_path: Path, image_root: Path, resolution: int, training:
     )
 
 
-def _build_dataloader(dataset, num_workers: int, dict_key: str):
+def _build_dataloader(dataset, batch_size: int, num_workers: int, dict_key: str):
     from sam3.train.data.collator import collate_fn_api
 
     return DataLoader(
         dataset,
-        batch_size=1,
+        batch_size=batch_size,
         shuffle=isinstance(dataset, torch.utils.data.Dataset) and getattr(dataset, "training", False),
         num_workers=num_workers,
         collate_fn=partial(collate_fn_api, dict_key=dict_key, with_seg_masks=True),
@@ -533,7 +534,7 @@ def _train(args: argparse.Namespace, log: logging.Logger) -> None:
     model.matcher = matcher  # Sam3Image.forward_grounding calls self.matcher directly.
 
     val_dataset = _build_dataset(val_coco_path, args.image_root, args.resolution, training=False, max_ann_per_img=args.max_ann_per_img)
-    val_loader = _build_dataloader(val_dataset, args.num_workers, dict_key="gcp")
+    val_loader = _build_dataloader(val_dataset, args.batch_size, args.num_workers, dict_key="gcp")
 
     loss_wrapper = _build_loss(device, matcher)
 
@@ -546,7 +547,7 @@ def _train(args: argparse.Namespace, log: logging.Logger) -> None:
         return
 
     train_dataset = _build_dataset(train_coco_path, args.image_root, args.resolution, training=True, max_ann_per_img=args.max_ann_per_img)
-    train_loader = _build_dataloader(train_dataset, args.num_workers, dict_key="gcp")
+    train_loader = _build_dataloader(train_dataset, args.batch_size, args.num_workers, dict_key="gcp")
 
     optimizer = torch.optim.AdamW(
         [p for p in model.parameters() if p.requires_grad],
