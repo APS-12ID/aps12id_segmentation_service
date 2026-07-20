@@ -26,6 +26,9 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+from pydantic import Field, ValidationError
+from pydantic.dataclasses import dataclass
+
 # Reuse the sys.path shim from the main package so the vendored ``sam3``
 # submodule beats any global install.
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -52,11 +55,29 @@ IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
-def _positive_int(value: str) -> int:
-    parsed = int(value)
-    if parsed <= 0:
-        raise argparse.ArgumentTypeError("must be greater than zero")
-    return parsed
+@dataclass
+class TrainConfig:
+    coco_json: Path
+    image_root: Path
+    base_checkpoint: Path
+    out_dir: Path
+    config: Path | None = None
+    epochs: int = 50
+    lr: float = 1e-4
+    weight_decay: float = 0.01
+    val_fraction: float = 0.1
+    seed: int = 0
+    resolution: int = DEFAULT_RESOLUTION
+    max_ann_per_img: int = 64
+    batch_size: int = 1
+    num_workers: int = 2
+    save_every: int = Field(default=10, gt=0)
+    eval_only: bool = False
+    resume: Path | None = None
+    enable_mlflow: bool = False
+    mlflow_base_uri: str | None = None
+    mlflow_experiment_name: str | None = None
+    mlflow_run_name: str | None = None
 
 
 def _load_config(parser: argparse.ArgumentParser, config_path: Path) -> None:
@@ -108,7 +129,7 @@ def _load_config(parser: argparse.ArgumentParser, config_path: Path) -> None:
     parser.set_defaults(**defaults)
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> TrainConfig:
     config_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
     config_parser.add_argument("--config", type=Path)
     config_args, _ = config_parser.parse_known_args(argv)
@@ -128,7 +149,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-ann-per-img", type=int, default=64)
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--num-workers", type=int, default=2)
-    parser.add_argument("--save-every", type=_positive_int, default=10, help="save a numbered checkpoint every N epochs")
+    parser.add_argument("--save-every", type=int, default=10, help="save a numbered checkpoint every N epochs")
     parser.add_argument("--eval-only", action="store_true", help="skip training; just eval --resume (or --base-checkpoint) on val split")
     parser.add_argument("--resume", type=Path, default=None, help="checkpoint to load before training/eval")
     parser.add_argument("--enable-mlflow", action="store_true")
@@ -137,7 +158,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--mlflow-run-name", default=None, help="defaults to the current timestamp")
     if config_args.config is not None:
         _load_config(parser, config_args.config)
-    return parser.parse_args(argv)
+    namespace = parser.parse_args(argv)
+    try:
+        return TrainConfig(**vars(namespace))
+    except ValidationError as exc:
+        parser.error(str(exc))
 
 
 def _build_transforms(training: bool, resolution: int):
@@ -584,7 +609,7 @@ def _restore_checkpoint(
 
 
 @contextmanager
-def _mlflow_run(args: argparse.Namespace):
+def _mlflow_run(args: TrainConfig):
     if not args.enable_mlflow:
         yield
         return
@@ -609,7 +634,7 @@ def _mlflow_run(args: argparse.Namespace):
         yield
 
 
-def _train(args: argparse.Namespace, log: logging.Logger) -> None:
+def _train(args: TrainConfig, log: logging.Logger) -> None:
 
     random.seed(args.seed)
     torch.manual_seed(args.seed)

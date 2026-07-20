@@ -12,6 +12,7 @@ import torch
 from scripts.finetune.coco_schema import CATEGORIES
 from scripts.finetune.train import (
     COCO_CATEGORY_NAMES,
+    TrainConfig,
     _restore_checkpoint,
     _save_checkpoint,
     _mlflow_run,
@@ -46,6 +47,7 @@ eval_only: true
     assert args.lr == 0.002
     assert args.batch_size == 4
     assert args.eval_only is True
+    assert isinstance(args, TrainConfig)
 
 
 def test_explicit_arguments_override_config(tmp_path: Path) -> None:
@@ -166,7 +168,7 @@ def test_save_every_rejects_non_positive_integer(capsys: pytest.CaptureFixture[s
             ]
         )
 
-    assert "must be greater than zero" in capsys.readouterr().err
+    assert "Input should be greater than 0" in capsys.readouterr().err
 
 
 def test_mlflow_run_uses_timestamp_and_logs_settings(monkeypatch: pytest.MonkeyPatch) -> None:

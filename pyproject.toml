@@ -10,6 +10,7 @@ dependencies = [
     "matplotlib>=3.8",
     "numpy>=1.26,<2",
     "pillow>=10",
+    "pydantic>=2.13",
     "pycocotools>=2.0.10",
     "psutil>=7",
     "python-multipart>=0.0.32",
