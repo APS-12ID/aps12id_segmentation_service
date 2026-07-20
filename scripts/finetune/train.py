@@ -101,13 +101,13 @@ def _load_config(parser: argparse.ArgumentParser, config_path: Path) -> None:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    config_parser = argparse.ArgumentParser(add_help=False)
+    config_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
     config_parser.add_argument("--config", type=Path)
     config_args, _ = config_parser.parse_known_args(argv)
 
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--config", type=Path, help="YAML file containing argument defaults")
-    parser.add_argument("--coco", type=Path, required=True, help="path to canonical GCP coco.json")
+    parser.add_argument("--coco-json", type=Path, required=True, help="path to canonical COCO JSON")
     parser.add_argument("--image-root", type=Path, required=True, help="image root the coco file_names are relative to")
     parser.add_argument("--base-checkpoint", type=Path, required=True, help="path to base sam3.pt")
     parser.add_argument("--out-dir", type=Path, required=True, help="where to write splits/checkpoints/metrics.jsonl")
@@ -515,7 +515,7 @@ def _train(args: argparse.Namespace, log: logging.Logger) -> None:
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     train_coco_path, val_coco_path, split_summary = _write_split_files(
-        args.coco, args.out_dir, args.val_fraction
+        args.coco_json, args.out_dir, args.val_fraction
     )
     log.info("split summary: %s", split_summary)
 

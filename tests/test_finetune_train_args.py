@@ -17,7 +17,7 @@ def test_config_supplies_required_and_optional_arguments(tmp_path: Path) -> None
     config = tmp_path / "train.yaml"
     config.write_text(
         """
-coco: config.json
+coco_json: config.json
 image_root: images
 base-checkpoint: sam3.pt
 out_dir: output
@@ -29,7 +29,7 @@ eval_only: true
 
     args = parse_args(["--config", str(config)])
 
-    assert args.coco == Path("config.json")
+    assert args.coco_json == Path("config.json")
     assert args.image_root == Path("images")
     assert args.base_checkpoint == Path("sam3.pt")
     assert args.out_dir == Path("output")
@@ -42,7 +42,7 @@ def test_explicit_arguments_override_config(tmp_path: Path) -> None:
     config = tmp_path / "train.yaml"
     config.write_text(
         """
-coco: from-config.json
+coco_json: from-config.json
 image_root: images
 base_checkpoint: sam3.pt
 out_dir: output
@@ -54,7 +54,7 @@ lr: 0.002
         [
             "--config",
             str(config),
-            "--coco",
+            "--coco-json",
             "from-cli.json",
             "--lr",
             "0.01",
@@ -63,7 +63,7 @@ lr: 0.002
         ]
     )
 
-    assert args.coco == Path("from-cli.json")
+    assert args.coco_json == Path("from-cli.json")
     assert args.lr == 0.01
     assert args.batch_size == 8
 
@@ -78,10 +78,28 @@ def test_unknown_config_field_is_rejected(tmp_path: Path, capsys: pytest.Capture
     assert "unknown config field(s): unknown_field" in capsys.readouterr().err
 
 
+def test_old_coco_argument_is_rejected(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        parse_args(
+            [
+                "--coco",
+                "coco.json",
+                "--image-root",
+                "images",
+                "--base-checkpoint",
+                "sam3.pt",
+                "--out-dir",
+                "output",
+            ]
+        )
+
+    assert "the following arguments are required: --coco-json" in capsys.readouterr().err
+
+
 def test_mlflow_arguments() -> None:
     args = parse_args(
         [
-            "--coco",
+            "--coco-json",
             "coco.json",
             "--image-root",
             "images",
@@ -131,7 +149,7 @@ def test_mlflow_run_uses_timestamp_and_logs_settings(monkeypatch: pytest.MonkeyP
         mlflow_base_uri="http://mlflow:5000",
         mlflow_experiment_name="finetune",
         mlflow_run_name=None,
-        coco=Path("coco.json"),
+        coco_json=Path("coco.json"),
     )
 
     with _mlflow_run(args):
@@ -140,7 +158,7 @@ def test_mlflow_run_uses_timestamp_and_logs_settings(monkeypatch: pytest.MonkeyP
     assert calls["tracking_uri"] == "http://mlflow:5000"
     assert calls["experiment"] == "finetune"
     assert re.fullmatch(r"\d{8}-\d{6}", calls["run_name"])
-    assert calls["params"]["coco"] == "coco.json"
+    assert calls["params"]["coco_json"] == "coco.json"
     assert calls["params"]["mlflow_run_name"] == calls["run_name"]
     assert calls["entered"] is True
     assert calls["exit_type"] is None
