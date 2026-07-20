@@ -13,6 +13,7 @@ from scripts.finetune.coco_schema import CATEGORIES
 from scripts.finetune.train import (
     COCO_CATEGORY_NAMES,
     TrainConfig,
+    _log_mlflow_losses,
     _restore_checkpoint,
     _save_checkpoint,
     _mlflow_run,
@@ -210,6 +211,21 @@ def test_mlflow_run_uses_timestamp_and_logs_settings(monkeypatch: pytest.MonkeyP
     assert calls["params"]["mlflow_run_name"] == calls["run_name"]
     assert calls["entered"] is True
     assert calls["exit_type"] is None
+
+
+def test_mlflow_logs_training_and_validation_loss(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {}
+    fake_mlflow = SimpleNamespace(
+        log_metrics=lambda metrics, *, step: calls.update(metrics=metrics, step=step)
+    )
+    monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
+
+    _log_mlflow_losses(True, train_loss=1.25, val_loss=0.75, epoch=3)
+
+    assert calls == {
+        "metrics": {"train_loss": 1.25, "val_loss": 0.75},
+        "step": 3,
+    }
 
 
 def test_checkpoint_restores_optimizer_progress_and_rng_state(tmp_path: Path) -> None:
