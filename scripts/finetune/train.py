@@ -61,7 +61,6 @@ class TrainConfig:
     image_root: Path
     base_checkpoint: Path
     out_dir: Path
-    config: Path | None = None
     epochs: int = 50
     lr: float = 1e-4
     weight_decay: float = 0.01
@@ -159,8 +158,10 @@ def parse_args(argv: list[str] | None = None) -> TrainConfig:
     if config_args.config is not None:
         _load_config(parser, config_args.config)
     namespace = parser.parse_args(argv)
+    train_config = vars(namespace)
+    train_config.pop("config")
     try:
-        return TrainConfig(**vars(namespace))
+        return TrainConfig(**train_config)
     except ValidationError as exc:
         parser.error(str(exc))
 
