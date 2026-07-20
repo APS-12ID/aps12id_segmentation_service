@@ -52,6 +52,13 @@ IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be greater than zero")
+    return parsed
+
+
 def _load_config(parser: argparse.ArgumentParser, config_path: Path) -> None:
     with config_path.open() as f:
         config = yaml.safe_load(f)
@@ -121,6 +128,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-ann-per-img", type=int, default=64)
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--num-workers", type=int, default=2)
+    parser.add_argument("--save-every", type=_positive_int, default=10, help="save a numbered checkpoint every N epochs")
     parser.add_argument("--eval-only", action="store_true", help="skip training; just eval --resume (or --base-checkpoint) on val split")
     parser.add_argument("--resume", type=Path, default=None, help="checkpoint to load before training/eval")
     parser.add_argument("--enable-mlflow", action="store_true")
@@ -663,6 +671,10 @@ def _train(args: argparse.Namespace, log: logging.Logger) -> None:
             best_val = val_loss
 
         _save_checkpoint(args.out_dir / "last.pt", model, optimizer, epoch, val_loss, best_val)
+        if (epoch + 1) % args.save_every == 0:
+            checkpoint_path = args.out_dir / f"epoch_{epoch + 1:04d}.pt"
+            _save_checkpoint(checkpoint_path, model, optimizer, epoch, val_loss, best_val)
+            log.info("  saved %s", checkpoint_path.name)
         if is_best:
             _save_checkpoint(args.out_dir / "best.pt", model, optimizer, epoch, val_loss, best_val)
             log.info("  saved best.pt (val_loss=%.4f)", val_loss)

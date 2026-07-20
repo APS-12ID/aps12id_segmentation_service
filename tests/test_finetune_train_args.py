@@ -133,6 +133,42 @@ def test_mlflow_arguments() -> None:
     assert args.mlflow_run_name == "test-run"
 
 
+def test_save_every_defaults_to_ten_and_accepts_positive_integer() -> None:
+    required_args = [
+        "--coco-json",
+        "coco.json",
+        "--image-root",
+        "images",
+        "--base-checkpoint",
+        "sam3.pt",
+        "--out-dir",
+        "output",
+    ]
+
+    assert parse_args(required_args).save_every == 10
+    assert parse_args([*required_args, "--save-every", "3"]).save_every == 3
+
+
+def test_save_every_rejects_non_positive_integer(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        parse_args(
+            [
+                "--coco-json",
+                "coco.json",
+                "--image-root",
+                "images",
+                "--base-checkpoint",
+                "sam3.pt",
+                "--out-dir",
+                "output",
+                "--save-every",
+                "0",
+            ]
+        )
+
+    assert "must be greater than zero" in capsys.readouterr().err
+
+
 def test_mlflow_run_uses_timestamp_and_logs_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = {}
 
