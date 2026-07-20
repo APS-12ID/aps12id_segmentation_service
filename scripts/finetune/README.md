@@ -122,7 +122,7 @@ the mask decoder, dice + focal losses. Runs on sentosa's H200 idx 1
 ```bash
 cd ~/aps12id_seg_finetune/repo
 git checkout finetune-pipeline && git pull
-uv sync
+uv sync --extra finetune
 
 # 1. Refresh the GCP COCO from the current LS state
 uv run python -m scripts.finetune.ls_to_coco \
@@ -227,7 +227,7 @@ and the repo's uv env is synced.
 
 ```bash
 cd ~/aps12id_seg_finetune/repo
-uv sync
+uv sync --extra finetune
 
 # 1. Migrate the current LS state to COCO
 uv run python -m scripts.finetune.ls_to_coco \

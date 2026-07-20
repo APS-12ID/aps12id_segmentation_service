@@ -618,7 +618,7 @@ def _mlflow_run(args: TrainConfig):
         import mlflow
     except ImportError as exc:
         raise RuntimeError(
-            "MLflow is enabled but not installed; run `uv sync --extra mlflow`"
+            "MLflow is enabled but not installed; run `uv sync --extra finetune`"
         ) from exc
 
     if args.mlflow_base_uri is not None:

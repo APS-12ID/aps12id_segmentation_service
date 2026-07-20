@@ -162,31 +162,31 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "einops" },
-    { name = "fairscale" },
     { name = "fastapi" },
-    { name = "fvcore" },
     { name = "matplotlib" },
     { name = "numpy" },
-    { name = "opencv-python-headless" },
     { name = "pillow" },
     { name = "psutil" },
     { name = "pycocotools" },
     { name = "pydantic" },
     { name = "python-multipart" },
-    { name = "pyyaml" },
     { name = "sam3" },
     { name = "scikit-image" },
-    { name = "scipy" },
     { name = "torch" },
-    { name = "torchmetrics" },
     { name = "torchvision" },
     { name = "tqdm" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.optional-dependencies]
-mlflow = [
+finetune = [
+    { name = "fairscale" },
+    { name = "fvcore" },
     { name = "mlflow" },
+    { name = "opencv-python-headless" },
+    { name = "pyyaml" },
+    { name = "scipy" },
+    { name = "torchmetrics" },
 ]
 
 [package.dev-dependencies]
@@ -198,29 +198,29 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "einops", specifier = ">=0.8" },
-    { name = "fairscale", specifier = ">=0.4.13" },
+    { name = "fairscale", marker = "extra == 'finetune'", specifier = ">=0.4.13" },
     { name = "fastapi", specifier = ">=0.139.0" },
-    { name = "fvcore", specifier = ">=0.1.5.post20221221" },
+    { name = "fvcore", marker = "extra == 'finetune'", specifier = ">=0.1.5.post20221221" },
     { name = "matplotlib", specifier = ">=3.8" },
-    { name = "mlflow", marker = "extra == 'mlflow'", specifier = ">=3.0" },
+    { name = "mlflow", marker = "extra == 'finetune'", specifier = ">=3.0" },
     { name = "numpy", specifier = ">=1.26,<2" },
-    { name = "opencv-python-headless", specifier = ">=4.11.0.86" },
+    { name = "opencv-python-headless", marker = "extra == 'finetune'", specifier = ">=4.11.0.86" },
     { name = "pillow", specifier = ">=10" },
     { name = "psutil", specifier = ">=7" },
     { name = "pycocotools", specifier = ">=2.0.10" },
     { name = "pydantic", specifier = ">=2.13" },
     { name = "python-multipart", specifier = ">=0.0.32" },
-    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "pyyaml", marker = "extra == 'finetune'", specifier = ">=6.0" },
     { name = "sam3", editable = "sam3" },
     { name = "scikit-image", specifier = ">=0.26.0" },
-    { name = "scipy", specifier = ">=1.17.1" },
+    { name = "scipy", marker = "extra == 'finetune'", specifier = ">=1.17.1" },
     { name = "torch", specifier = ">=2.7", index = "https://download.pytorch.org/whl/cu129" },
-    { name = "torchmetrics", specifier = ">=1.9.0" },
+    { name = "torchmetrics", marker = "extra == 'finetune'", specifier = ">=1.9.0" },
     { name = "torchvision", index = "https://download.pytorch.org/whl/cu129" },
     { name = "tqdm", specifier = ">=4.68.4" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.51.0" },
 ]
-provides-extras = ["mlflow"]
+provides-extras = ["finetune"]
 
 [package.metadata.requires-dev]
 dev = [

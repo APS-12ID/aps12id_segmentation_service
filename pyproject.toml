@@ -18,19 +18,19 @@ dependencies = [
     "torch>=2.7",
     "torchvision",
     "uvicorn[standard]>=0.51.0",
-    "opencv-python-headless>=4.11.0.86",
     "tqdm>=4.68.4",
-    "torchmetrics>=1.9.0",
-    "scipy>=1.17.1",
-    "fvcore>=0.1.5.post20221221",
-    "fairscale>=0.4.13",
     "scikit-image>=0.26.0",
-    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
-mlflow = [
+finetune = [
+    "fairscale>=0.4.13",
+    "fvcore>=0.1.5.post20221221",
     "mlflow>=3.0",
+    "opencv-python-headless>=4.11.0.86",
+    "pyyaml>=6.0",
+    "scipy>=1.17.1",
+    "torchmetrics>=1.9.0",
 ]
 
 [tool.uv.sources]
