@@ -8,12 +8,16 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
+from PIL import Image
 
+import scripts.finetune.train as train_module
 from scripts.finetune.coco_schema import CATEGORIES
 from scripts.finetune.train import (
     COCO_CATEGORY_NAMES,
     TrainConfig,
     _log_mlflow_losses,
+    _log_mlflow_segmentation_results,
+    _sample_results_by_category,
     _restore_checkpoint,
     _save_checkpoint,
     _mlflow_run,
@@ -170,6 +174,125 @@ def test_save_every_rejects_non_positive_integer(capsys: pytest.CaptureFixture[s
         )
 
     assert "Input should be greater than 0" in capsys.readouterr().err
+
+
+def test_mlflow_result_logging_interval_is_optional_and_positive() -> None:
+    required_args = [
+        "--coco-json",
+        "coco.json",
+        "--image-root",
+        "images",
+        "--base-checkpoint",
+        "sam3.pt",
+        "--out-dir",
+        "output",
+    ]
+
+    assert parse_args(required_args).log_result_to_mlflow_every is None
+    assert (
+        parse_args(
+            [*required_args, "--log-result-to-mlflow-every", "5"]
+        ).log_result_to_mlflow_every
+        == 5
+    )
+
+
+def test_mlflow_result_logging_interval_rejects_non_positive_integer(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        parse_args(
+            [
+                "--coco-json",
+                "coco.json",
+                "--image-root",
+                "images",
+                "--base-checkpoint",
+                "sam3.pt",
+                "--out-dir",
+                "output",
+                "--log-result-to-mlflow-every",
+                "0",
+            ]
+        )
+
+    assert "Input should be greater than 0" in capsys.readouterr().err
+
+
+def test_mlflow_result_sampling_selects_two_images_per_category() -> None:
+    samples = [
+        SimpleNamespace(category_name=category, image_id=image_id)
+        for category in ("hole", "sample")
+        for image_id in range(4)
+    ]
+
+    sampled_a = _sample_results_by_category(samples, seed=7)
+    sampled_b = _sample_results_by_category(samples, seed=7)
+    sampled_c = _sample_results_by_category(samples, seed=8)
+
+    assert {category: len(selected) for category, selected in sampled_a.items()} == {
+        "hole": 2,
+        "sample": 2,
+    }
+    assert sampled_a == sampled_b
+    assert sampled_a != sampled_c
+
+
+def test_mlflow_result_logging_uploads_a_figure_for_each_category(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts = []
+    fake_mlflow = SimpleNamespace(
+        log_figure=lambda figure, artifact_file: artifacts.append(artifact_file)
+    )
+    monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
+
+    class FakeProcessor:
+        def __init__(self, model, *, device, confidence_threshold):
+            pass
+
+        def set_image(self, image):
+            return {}
+
+        def set_text_prompt(self, *, state, prompt):
+            return {
+                "masks": torch.ones((1, 1, 4, 4), dtype=torch.bool),
+                "scores": torch.tensor([0.9]),
+            }
+
+    monkeypatch.setitem(
+        sys.modules,
+        "sam3.model.sam3_image_processor",
+        SimpleNamespace(Sam3Processor=FakeProcessor),
+    )
+    samples = [
+        SimpleNamespace(
+            category_name=category,
+            image_id=image_id,
+            load_image=lambda: Image.new("RGB", (4, 4)),
+            instances=[SimpleNamespace(mask=np.ones((4, 4), dtype=np.uint8))],
+        )
+        for category in ("hole", "sample")
+        for image_id in range(3)
+    ]
+    monkeypatch.setattr(train_module, "GcpCocoDataset", lambda **kwargs: samples)
+    model = SimpleNamespace(eval=lambda: None)
+
+    _log_mlflow_segmentation_results(
+        enabled=True,
+        every=2,
+        model=model,
+        val_coco_path=Path("val.coco.json"),
+        image_root=Path("images"),
+        device="cpu",
+        epoch=1,
+        seed=7,
+    )
+
+    assert artifacts == [
+        "segmentation_results/epoch_0002/hole.png",
+        "segmentation_results/epoch_0002/sample.png",
+    ]
 
 
 def test_mlflow_run_uses_timestamp_and_logs_settings(monkeypatch: pytest.MonkeyPatch) -> None:

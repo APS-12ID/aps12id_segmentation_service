@@ -71,6 +71,7 @@ class TrainConfig:
     batch_size: int = 1
     num_workers: int = 2
     save_every: int = Field(default=10, gt=0)
+    log_result_to_mlflow_every: int | None = Field(default=None, gt=0)
     eval_only: bool = False
     resume: Path | None = None
     enable_mlflow: bool = False
@@ -149,6 +150,12 @@ def parse_args(argv: list[str] | None = None) -> TrainConfig:
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--save-every", type=int, default=10, help="save a numbered checkpoint every N epochs")
+    parser.add_argument(
+        "--log-result-to-mlflow-every",
+        type=int,
+        default=None,
+        help="log segmentation plots to MLflow every N epochs; disabled by default",
+    )
     parser.add_argument("--eval-only", action="store_true", help="skip training; just eval --resume (or --base-checkpoint) on val split")
     parser.add_argument("--resume", type=Path, default=None, help="checkpoint to load before training/eval")
     parser.add_argument("--enable-mlflow", action="store_true")
@@ -653,6 +660,113 @@ def _log_mlflow_losses(enabled: bool, train_loss: float, val_loss: float, epoch:
     )
 
 
+def _sample_results_by_category(
+    dataset: GcpCocoDataset,
+    seed: int,
+    samples_per_category: int = 2,
+) -> dict[str, list[Any]]:
+    samples_by_category: dict[str, list[Any]] = {}
+    for sample in dataset:
+        samples_by_category.setdefault(sample.category_name, []).append(sample)
+
+    rng = random.Random(seed)
+    return {
+        category_name: rng.sample(samples, min(samples_per_category, len(samples)))
+        for category_name, samples in samples_by_category.items()
+    }
+
+
+def _segmentation_overlay(image: np.ndarray, masks: np.ndarray) -> np.ndarray:
+    from PIL import Image as PILImage
+
+    colors = np.array(
+        [
+            [230, 25, 75],
+            [60, 180, 75],
+            [0, 130, 200],
+            [245, 130, 48],
+            [145, 30, 180],
+            [70, 240, 240],
+            [240, 50, 230],
+            [210, 245, 60],
+        ],
+        dtype=np.float32,
+    )
+    overlay = image.astype(np.float32).copy()
+    height, width = image.shape[:2]
+    for index, mask in enumerate(masks):
+        binary_mask = np.asarray(mask).squeeze().astype(bool)
+        if binary_mask.shape != (height, width):
+            mask_image = PILImage.fromarray(binary_mask.astype(np.uint8) * 255)
+            binary_mask = np.asarray(
+                mask_image.resize((width, height), resample=PILImage.NEAREST)
+            ).astype(bool)
+        color = colors[index % len(colors)]
+        overlay[binary_mask] = overlay[binary_mask] * 0.45 + color * 0.55
+    return np.clip(overlay, 0, 255).astype(np.uint8)
+
+
+@torch.no_grad()
+def _log_mlflow_segmentation_results(
+    enabled: bool,
+    every: int | None,
+    model: torch.nn.Module,
+    val_coco_path: Path,
+    image_root: Path,
+    device: str,
+    epoch: int,
+    seed: int,
+) -> None:
+    if not enabled or every is None or (epoch + 1) % every != 0:
+        return
+
+    import matplotlib.pyplot as plt
+    import mlflow
+    from sam3.model.sam3_image_processor import Sam3Processor
+
+    model.eval()
+    processor = Sam3Processor(model, device=device, confidence_threshold=0.5)
+    dataset = GcpCocoDataset(
+        coco_path=val_coco_path,
+        image_root=image_root,
+        split="train",  # whole file — we already split externally
+        val_fraction=0.0,
+    )
+    sampled = _sample_results_by_category(dataset, seed=seed + epoch)
+
+    for category_name, samples in sampled.items():
+        fig, axes = plt.subplots(len(samples), 3, figsize=(15, 5 * len(samples)), squeeze=False)
+        for row, sample in enumerate(samples):
+            image = sample.load_image()
+            image_array = np.asarray(image)
+            with torch.autocast(device_type=device, dtype=torch.bfloat16):
+                state = processor.set_image(image)
+                output = processor.set_text_prompt(state=state, prompt=category_name)
+
+            predicted_masks = output["masks"].detach().cpu().numpy()
+            ground_truth_masks = np.stack([instance.mask for instance in sample.instances])
+            scores = output["scores"].detach().float().cpu().numpy()
+
+            axes[row, 0].imshow(image_array)
+            axes[row, 0].set_title(f"Original: image {sample.image_id}")
+            axes[row, 1].imshow(_segmentation_overlay(image_array, ground_truth_masks))
+            axes[row, 1].set_title(f"Ground truth: {len(ground_truth_masks)} instances")
+            axes[row, 2].imshow(_segmentation_overlay(image_array, predicted_masks))
+            score_text = ", ".join(f"{score:.2f}" for score in scores)
+            axes[row, 2].set_title(f"Prediction: {score_text or 'no masks'}")
+            for axis in axes[row]:
+                axis.set_axis_off()
+
+        fig.suptitle(category_name)
+        fig.tight_layout()
+        artifact_name = category_name.replace(" ", "_")
+        mlflow.log_figure(
+            fig,
+            f"segmentation_results/epoch_{epoch + 1:04d}/{artifact_name}.png",
+        )
+        plt.close(fig)
+
+
 def _train(args: TrainConfig, log: logging.Logger) -> None:
 
     random.seed(args.seed)
@@ -723,6 +837,17 @@ def _train(args: TrainConfig, log: logging.Logger) -> None:
         if is_best:
             _save_checkpoint(args.out_dir / "best.pt", model, optimizer, epoch, val_loss, best_val)
             log.info("  saved best.pt (val_loss=%.4f)", val_loss)
+
+        _log_mlflow_segmentation_results(
+            enabled=args.enable_mlflow,
+            every=args.log_result_to_mlflow_every,
+            model=model,
+            val_coco_path=val_coco_path,
+            image_root=args.image_root,
+            device=device,
+            epoch=epoch,
+            seed=args.seed,
+        )
 
     log.info("final per-category IoU eval on val split...")
     ious = per_category_iou(model, val_coco_path, args.image_root, device)
