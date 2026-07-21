@@ -649,7 +649,7 @@ def _mlflow_run(args: TrainConfig):
     if args.mlflow_experiment_name is not None:
         mlflow.set_experiment(args.mlflow_experiment_name)
 
-    run_name = args.mlflow_run_name or datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
+    run_name = args.mlflow_run_name or args.out_dir.name
     settings = {key: str(value) for key, value in vars(args).items()}
     settings["mlflow_run_name"] = run_name
     with mlflow.start_run(run_name=run_name):

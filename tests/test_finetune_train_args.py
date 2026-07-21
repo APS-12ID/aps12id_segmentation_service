@@ -334,7 +334,9 @@ def test_mlflow_result_logging_uploads_a_figure_for_each_category(
     ]
 
 
-def test_mlflow_run_uses_timestamp_and_logs_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_mlflow_run_uses_output_dir_name_and_logs_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls = {}
 
     class FakeRun:
@@ -361,6 +363,7 @@ def test_mlflow_run_uses_timestamp_and_logs_settings(monkeypatch: pytest.MonkeyP
         mlflow_experiment_name="finetune",
         mlflow_run_name=None,
         coco_json=Path("coco.json"),
+        out_dir=Path("runs/output_20260721-143052"),
     )
 
     with _mlflow_run(args):
@@ -368,7 +371,7 @@ def test_mlflow_run_uses_timestamp_and_logs_settings(monkeypatch: pytest.MonkeyP
 
     assert calls["tracking_uri"] == "http://mlflow:5000"
     assert calls["experiment"] == "finetune"
-    assert re.fullmatch(r"\d{8}-\d{6}", calls["run_name"])
+    assert calls["run_name"] == "output_20260721-143052"
     assert calls["params"]["coco_json"] == "coco.json"
     assert calls["params"]["mlflow_run_name"] == calls["run_name"]
     assert calls["entered"] is True
