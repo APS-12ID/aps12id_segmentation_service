@@ -61,6 +61,7 @@ class TrainConfig:
     image_root: Path
     base_checkpoint: Path
     out_dir: Path
+    add_timestamp_to_out_dir: bool = False
     epochs: int = 50
     lr: float = 1e-4
     weight_decay: float = 0.01
@@ -140,6 +141,11 @@ def parse_args(argv: list[str] | None = None) -> TrainConfig:
     parser.add_argument("--image-root", type=Path, required=True, help="image root the coco file_names are relative to")
     parser.add_argument("--base-checkpoint", type=Path, required=True, help="path to base sam3.pt")
     parser.add_argument("--out-dir", type=Path, required=True, help="where to write splits/checkpoints/metrics.jsonl")
+    parser.add_argument(
+        "--add-timestamp-to-out-dir",
+        action="store_true",
+        help="append the current timestamp to --out-dir",
+    )
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--weight-decay", type=float, default=0.01)
@@ -167,6 +173,9 @@ def parse_args(argv: list[str] | None = None) -> TrainConfig:
     namespace = parser.parse_args(argv)
     train_config = vars(namespace)
     train_config.pop("config")
+    if train_config["add_timestamp_to_out_dir"]:
+        timestamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
+        train_config["out_dir"] = Path(f'{train_config["out_dir"]}_{timestamp}')
     try:
         return TrainConfig(**train_config)
     except ValidationError as exc:
