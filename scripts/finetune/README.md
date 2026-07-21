@@ -9,10 +9,10 @@ Two plate types, four categories, one dataset:
 
 | id | name          | supercategory | source                                |
 |----|---------------|---------------|---------------------------------------|
-| 1  | hole          | gcp           | Label Studio project #1               |
-| 2  | sample        | gcp           | Label Studio project #1               |
-| 3  | slit          | capillary     | Label Studio project #1               |
-| 4  | capillary tube| capillary     | Label Studio project #1               |
+| 0  | hole          | gcp           | Label Studio project #1               |
+| 1  | sample        | gcp           | Label Studio project #1               |
+| 2  | slit          | capillary     | Label Studio project #1               |
+| 3  | capillary tube| capillary     | Label Studio project #1               |
 
 ## Strategy
 
@@ -74,12 +74,12 @@ category per physical class.
 
 | LS class value              | drawing tool | COCO category id / name |
 |-----------------------------|--------------|-------------------------|
-| `hole_polygon`              | polygon      | 1 / hole                |
-| `sample_polygon`            | polygon      | 2 / sample              |
-| `slit_polygon`              | polygon      | 3 / slit                |
-| `slit_rectangle`            | rectangle    | 3 / slit                |
-| `capillary_tube_polygon`    | polygon      | 4 / capillary tube      |
-| `capillary_tube_rectangle`  | rectangle    | 4 / capillary tube      |
+| `hole_polygon`              | polygon      | 0 / hole                |
+| `sample_polygon`            | polygon      | 1 / sample              |
+| `slit_polygon`              | polygon      | 2 / slit                |
+| `slit_rectangle`            | rectangle    | 2 / slit                |
+| `capillary_tube_polygon`    | polygon      | 3 / capillary tube      |
+| `capillary_tube_rectangle`  | rectangle    | 3 / capillary tube      |
 
 `BrushLabels` is retired. Any residual brush regions are dropped by
 `ls_to_coco.py`. New annotations should use polygon; the rectangle tool
