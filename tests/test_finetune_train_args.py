@@ -26,6 +26,7 @@ from scripts.finetune.train import (
 
 
 def test_evaluation_categories_come_from_coco_schema() -> None:
+    assert [category["id"] for category in CATEGORIES] == list(range(4))
     assert COCO_CATEGORY_NAMES == tuple(category["name"] for category in CATEGORIES)
 
 
@@ -83,6 +84,44 @@ lr: 0.002
     assert args.coco_json == Path("from-cli.json")
     assert args.lr == 0.01
     assert args.batch_size == 8
+
+
+def test_timestamp_is_optionally_appended_to_out_dir() -> None:
+    required_args = [
+        "--coco-json",
+        "coco.json",
+        "--image-root",
+        "images",
+        "--base-checkpoint",
+        "sam3.pt",
+        "--out-dir",
+        "output",
+    ]
+
+    assert parse_args(required_args).out_dir == Path("output")
+
+    args = parse_args([*required_args, "--add-timestamp-to-out-dir"])
+
+    assert args.add_timestamp_to_out_dir is True
+    assert re.fullmatch(r"output_\d{8}-\d{6}", str(args.out_dir))
+
+
+def test_config_can_add_timestamp_to_out_dir(tmp_path: Path) -> None:
+    config = tmp_path / "train.yaml"
+    config.write_text(
+        """
+coco_json: config.json
+image_root: images
+base_checkpoint: sam3.pt
+out_dir: output
+add_timestamp_to_out_dir: true
+"""
+    )
+
+    args = parse_args(["--config", str(config)])
+
+    assert args.add_timestamp_to_out_dir is True
+    assert re.fullmatch(r"output_\d{8}-\d{6}", str(args.out_dir))
 
 
 def test_unknown_config_field_is_rejected(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
