@@ -38,13 +38,22 @@ class Sample:
         return Image.open(self.image_path).convert("RGB")
 
 
-def _decode_rle(rle: dict[str, Any]) -> np.ndarray:
-    counts = rle["counts"]
-    rle_bytes = {
-        "size": rle["size"],
-        "counts": counts.encode("ascii") if isinstance(counts, str) else counts,
-    }
-    return np.asarray(mask_utils.decode(rle_bytes), dtype=np.uint8)
+def _decode_segmentation(
+    segmentation: list[list[float]] | dict[str, Any],
+    height: int,
+    width: int,
+) -> np.ndarray:
+    if isinstance(segmentation, list):
+        rle = mask_utils.merge(mask_utils.frPyObjects(segmentation, height, width))
+    elif isinstance(segmentation["counts"], list):
+        rle = mask_utils.frPyObjects(segmentation, height, width)
+    else:
+        counts = segmentation["counts"]
+        rle = {
+            "size": segmentation["size"],
+            "counts": counts.encode("ascii") if isinstance(counts, str) else counts,
+        }
+    return np.asarray(mask_utils.decode(rle), dtype=np.uint8)
 
 
 def _split_image_ids(
@@ -137,7 +146,12 @@ class GcpCocoDataset:
                 continue
             if ann["category_id"] not in allowed_ids:
                 continue
-            mask = _decode_rle(ann["segmentation"])
+            image_meta = images_by_id[ann["image_id"]]
+            mask = _decode_segmentation(
+                ann["segmentation"],
+                height=int(image_meta["height"]),
+                width=int(image_meta["width"]),
+            )
             if mask.sum() == 0:
                 continue
             groups.setdefault((ann["image_id"], ann["category_id"]), []).append(
