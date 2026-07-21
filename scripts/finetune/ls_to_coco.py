@@ -33,18 +33,37 @@ from .coco_schema import (
 )
 
 DATA_URL_RE = re.compile(r"[?&]d=([^&]+)")
+UPLOAD_URL_PREFIX = "/data/upload/"
 
 
 def parse_ls_image_ref(task_data_json: str) -> str:
-    """Turn task.data like {"image":"/data/local-files/?d=Camera/foo.jpg"}
-    into the repo-relative path "Camera/foo.jpg".
+    """Return the image path stored in a Label Studio task.
+
+    Local-storage tasks retain their path after ``?d=``. Uploaded tasks only
+    expose Label Studio's internal ``/data/upload/<project>/`` path, so use the
+    uploaded filename for those.
     """
     data = json.loads(task_data_json)
     ref = data.get("image", "")
     m = DATA_URL_RE.search(ref)
-    if not m:
-        raise ValueError(f"cannot parse image ref: {ref!r}")
-    return urllib.parse.unquote(m.group(1))
+    if m:
+        return urllib.parse.unquote(m.group(1))
+
+    parsed_path = urllib.parse.unquote(urllib.parse.urlparse(ref).path)
+    if parsed_path.startswith(UPLOAD_URL_PREFIX):
+        return Path(parsed_path).name
+    raise ValueError(f"cannot parse image ref: {ref!r}")
+
+
+def resolve_ls_image_path(task_data_json: str, image_root: Path) -> Path:
+    rel_path = Path(parse_ls_image_ref(task_data_json))
+    image_path = image_root / rel_path
+    if image_path.exists():
+        return image_path
+
+    # Dataset directories are sometimes moved without their former Label
+    # Studio storage prefix (for example Camera/foo.jpg becomes images/foo.jpg).
+    return image_root / rel_path.name
 
 
 def load_image_size(image_path: Path) -> tuple[int, int]:
@@ -107,8 +126,7 @@ def migrate(
         if not regions:
             continue
 
-        rel_path = parse_ls_image_ref(row["task_data"])
-        image_path = image_root / rel_path
+        image_path = resolve_ls_image_path(row["task_data"], image_root)
         if not image_path.exists():
             counts["regions_dropped_empty"] += len(regions)
             continue

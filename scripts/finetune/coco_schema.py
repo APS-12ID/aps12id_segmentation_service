@@ -19,10 +19,10 @@ from pycocotools import mask as mask_utils
 # Stable category IDs. Keep these frozen across runs — downstream consumers
 # key off IDs, not names, when merging COCOs.
 CATEGORIES: list[dict[str, Any]] = [
-    {"id": 1, "name": "hole", "supercategory": "gcp"},
-    {"id": 2, "name": "sample", "supercategory": "gcp"},
-    {"id": 3, "name": "slit", "supercategory": "capillary"},
-    {"id": 4, "name": "capillary tube", "supercategory": "capillary"},
+    {"id": 0, "name": "hole", "supercategory": "gcp"},
+    {"id": 1, "name": "sample", "supercategory": "gcp"},
+    {"id": 2, "name": "slit", "supercategory": "capillary"},
+    {"id": 3, "name": "capillary tube", "supercategory": "capillary"},
 ]
 
 CATEGORY_ID_BY_NAME: dict[str, int] = {c["name"]: c["id"] for c in CATEGORIES}
@@ -33,18 +33,18 @@ CATEGORY_ID_BY_NAME: dict[str, int] = {c["name"]: c["id"] for c in CATEGORIES}
 # class — the shape suffix is stripped on ingest via this mapping.
 LS_LABEL_TO_CATEGORY_ID: dict[str, int] = {
     # New shape-suffixed forms (LS project #1 label config, post-2026-07-17).
-    "hole_polygon": 1,
-    "sample_polygon": 2,
-    "slit_polygon": 3,
-    "slit_rectangle": 3,
-    "capillary_tube_polygon": 4,
-    "capillary_tube_rectangle": 4,
+    "hole_polygon": 0,
+    "sample_polygon": 1,
+    "slit_polygon": 2,
+    "slit_rectangle": 2,
+    "capillary_tube_polygon": 3,
+    "capillary_tube_rectangle": 3,
     # Bare forms — pre-rename annotations. Kept so historical exports still
     # migrate. Remove once every task_completion.result JSON has been rewritten.
-    "hole": 1,
-    "sample": 2,
-    "slit": 3,
-    "capillary tube": 4,
+    "hole": 0,
+    "sample": 1,
+    "slit": 2,
+    "capillary tube": 3,
 }
 
 
