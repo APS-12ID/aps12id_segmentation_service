@@ -502,9 +502,14 @@ def per_category_iou(
     }
 
 
-def _write_split_files(coco_path: Path, out_dir: Path, val_fraction: float) -> tuple[Path, Path, dict[str, Any]]:
+def _write_split_files(
+    coco_path: Path,
+    out_dir: Path,
+    val_fraction: float,
+    seed: int,
+) -> tuple[Path, Path, dict[str, Any]]:
     coco = json.loads(coco_path.read_text())
-    train_coco, val_coco = split_coco_by_image_id(coco, val_fraction)
+    train_coco, val_coco = split_coco_by_image_id(coco, val_fraction, seed)
     train_path = out_dir / "train.coco.json"
     val_path = out_dir / "val.coco.json"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -516,6 +521,7 @@ def _write_split_files(coco_path: Path, out_dir: Path, val_fraction: float) -> t
         "val_images": len(val_coco["images"]),
         "val_annotations": len(val_coco["annotations"]),
         "val_fraction": val_fraction,
+        "seed": seed,
     }
     return train_path, val_path, summary
 
@@ -658,7 +664,7 @@ def _train(args: TrainConfig, log: logging.Logger) -> None:
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     train_coco_path, val_coco_path, split_summary = _write_split_files(
-        args.coco_json, args.out_dir, args.val_fraction
+        args.coco_json, args.out_dir, args.val_fraction, args.seed
     )
     log.info("split summary: %s", split_summary)
 
