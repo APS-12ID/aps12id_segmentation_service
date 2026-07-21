@@ -8,6 +8,7 @@ shape SAM3's grounded-detection forward expects.
 """
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
@@ -50,10 +51,12 @@ def _split_image_ids(
     image_ids: Sequence[int],
     val_fraction: float,
     split: str,
+    seed: int = 0,
 ) -> set[int]:
     if not 0.0 <= val_fraction < 1.0:
         raise ValueError(f"val_fraction must be in [0, 1); got {val_fraction}")
     ordered = sorted(image_ids)
+    random.Random(seed).shuffle(ordered)
     n_val = max(1, int(round(len(ordered) * val_fraction))) if val_fraction > 0 else 0
     val_ids = set(ordered[len(ordered) - n_val:]) if n_val else set()
     if split == "val":
@@ -63,17 +66,21 @@ def _split_image_ids(
     raise ValueError(f"split must be 'train' or 'val'; got {split!r}")
 
 
-def split_coco_by_image_id(coco: dict[str, Any], val_fraction: float) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Split a canonical COCO into (train_coco, val_coco) by sorted image_id.
+def split_coco_by_image_id(
+    coco: dict[str, Any],
+    val_fraction: float,
+    seed: int = 0,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Split a canonical COCO into randomized (train_coco, val_coco) subsets.
 
-    Deterministic: the last ``val_fraction`` of ``sorted(image_ids)`` becomes val;
-    the rest is train. Categories are duplicated verbatim into both outputs so
-    downstream loaders see a stable category schema regardless of split.
+    The random split is reproducible for a given ``seed``. Categories are
+    duplicated verbatim into both outputs so downstream loaders see a stable
+    category schema regardless of split.
     """
     if not 0.0 <= val_fraction < 1.0:
         raise ValueError(f"val_fraction must be in [0, 1); got {val_fraction}")
     all_ids = [img["id"] for img in coco["images"]]
-    val_ids = _split_image_ids(all_ids, val_fraction, "val")
+    val_ids = _split_image_ids(all_ids, val_fraction, "val", seed)
     train_ids = set(all_ids) - val_ids
 
     def _subset(image_ids: set[int]) -> dict[str, Any]:
@@ -103,6 +110,7 @@ class GcpCocoDataset:
         categories: Sequence[str] | None = None,
         split: str = "train",
         val_fraction: float = 0.1,
+        seed: int = 0,
     ) -> None:
         import json
 
@@ -119,7 +127,7 @@ class GcpCocoDataset:
             allowed_ids = set(cat_by_id)
 
         images_by_id: dict[int, dict[str, Any]] = {img["id"]: img for img in coco["images"]}
-        split_image_ids = _split_image_ids(list(images_by_id), val_fraction, split)
+        split_image_ids = _split_image_ids(list(images_by_id), val_fraction, split, seed)
 
         # Group annotations by (image_id, category_id), keeping only annotations whose
         # image is in this split and whose category is allowed.
@@ -153,6 +161,7 @@ class GcpCocoDataset:
         self._samples = samples
         self._split = split
         self._val_fraction = val_fraction
+        self._seed = seed
         self._categories = tuple(sorted(allowed_ids))
 
     def __len__(self) -> int:
@@ -181,6 +190,7 @@ class GcpCocoDataset:
         return {
             "split": self._split,
             "val_fraction": self._val_fraction,
+            "seed": self._seed,
             "num_samples": len(self._samples),
             "num_images": len(self.image_ids),
             "per_category": per_cat,
