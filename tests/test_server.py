@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 from io import BytesIO
 
+import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
@@ -93,6 +94,7 @@ def test_segment_accepts_multipart_file() -> None:
     assert response.status_code == 200
     assert segmenter.calls[-1]["x"] == 1.0
     assert segmenter.calls[-1]["y"] == 1.0
+    assert segmenter.calls[-1]["confidence_threshold"] == 0.5
 
 
 def test_segment_requires_prompt_or_complete_point() -> None:
@@ -143,15 +145,28 @@ def test_convenience_endpoints_override_prompt_and_threshold() -> None:
     assert segmenter.calls[-1]["confidence_threshold"] == 0.5
 
 
-def test_segment_12id_samh_holes_overrides_prompt_and_threshold() -> None:
+@pytest.mark.parametrize(
+    ("endpoint", "expected_prompt"),
+    [
+        ("/segment_12id_samv_holes", "hole"),
+        ("/segment_12id_samh_holes", "hole"),
+        ("/segment_12id_capillary_sample", "sample"),
+        ("/segment_12id_capillary_tube", "capillary tube"),
+        ("/segment_12id_slit", "slit"),
+    ],
+)
+def test_convenience_endpoint_overrides_prompt_and_threshold(
+    endpoint: str,
+    expected_prompt: str,
+) -> None:
     client, segmenter = _client()
 
     response = client.post(
-        "/segment_12id_samh_holes",
+        endpoint,
         files={"image_file": ("image.png", _png_bytes(), "image/png")},
         data={"prompt": "ignored", "confidence_threshold": "0.9"},
     )
 
     assert response.status_code == 200
-    assert segmenter.calls[-1]["prompt"] == "hole"
-    assert segmenter.calls[-1]["confidence_threshold"] == 0.3
+    assert segmenter.calls[-1]["prompt"] == expected_prompt
+    assert segmenter.calls[-1]["confidence_threshold"] == 0.5

@@ -86,11 +86,11 @@ def create_app(segmenter: Any | None = None) -> FastAPI:
 
     @app.post("/segment_12id_samv_holes", response_model=SegmentResponse)
     async def segment_12id_samv_holes(request: Request) -> SegmentResponse:
-        return await run_segment(request, forced_prompt="hole", forced_threshold=0.3)
+        return await run_segment(request, forced_prompt="hole", forced_threshold=0.5)
 
     @app.post("/segment_12id_samh_holes", response_model=SegmentResponse)
     async def segment_12id_samh_holes(request: Request) -> SegmentResponse:
-        return await run_segment(request, forced_prompt="hole", forced_threshold=0.3)
+        return await run_segment(request, forced_prompt="hole", forced_threshold=0.5)
 
     @app.post("/segment_12id_samv_beam_tube", response_model=SegmentResponse)
     async def segment_12id_samv_beam_tube(request: Request) -> SegmentResponse:
@@ -99,6 +99,22 @@ def create_app(segmenter: Any | None = None) -> FastAPI:
             forced_prompt="metal_probe",
             forced_threshold=0.5,
         )
+
+    @app.post("/segment_12id_capillary_sample", response_model=SegmentResponse)
+    async def segment_12id_capillary_sample(request: Request) -> SegmentResponse:
+        return await run_segment(request, forced_prompt="sample", forced_threshold=0.5)
+
+    @app.post("/segment_12id_capillary_tube", response_model=SegmentResponse)
+    async def segment_12id_capillary_tube(request: Request) -> SegmentResponse:
+        return await run_segment(
+            request,
+            forced_prompt="capillary tube",
+            forced_threshold=0.5,
+        )
+
+    @app.post("/segment_12id_slit", response_model=SegmentResponse)
+    async def segment_12id_slit(request: Request) -> SegmentResponse:
+        return await run_segment(request, forced_prompt="slit", forced_threshold=0.5)
 
     return app
 

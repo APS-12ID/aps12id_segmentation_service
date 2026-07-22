@@ -27,7 +27,7 @@ uv sync
 
 Download the SAM3 model checkpoint from:
 
-https://anl.box.com/s/yzr8w7ys9bxv8a8i7k01qp2l2ryrwsaq
+https://anl.box.com/s/xw1acr15uk5ty7bknlgrk6q639d5poxw
 
 Save it somewhere stable, for example `checkpoints/sam3.pt`, then set
 `SAM3_CHECKPOINT` to that local file before launching the server:
@@ -61,6 +61,9 @@ All segmentation endpoints are `POST` requests:
 - `/segment_12id_samv_holes`
 - `/segment_12id_samh_holes`
 - `/segment_12id_samv_beam_tube`
+- `/segment_12id_capillary_sample`
+- `/segment_12id_capillary_tube`
+- `/segment_12id_slit`
 
 `/segment` requires one image source and at least one prompt source:
 
@@ -78,10 +81,15 @@ provided, the other coordinate is required.
 The convenience endpoints use the same image input format but force the prompt
 and confidence threshold:
 
-- `/segment_12id_samv_holes`: `prompt="hole"`, `confidence_threshold=0.3`
-- `/segment_12id_samh_holes`: `prompt="hole"`, `confidence_threshold=0.3`
+- `/segment_12id_samv_holes`: `prompt="hole"`, `confidence_threshold=0.5`
+- `/segment_12id_samh_holes`: `prompt="hole"`, `confidence_threshold=0.5`
 - `/segment_12id_samv_beam_tube`: `prompt="metal_probe"`,
   `confidence_threshold=0.5`
+- `/segment_12id_capillary_sample`: `prompt="sample"`,
+  `confidence_threshold=0.5`
+- `/segment_12id_capillary_tube`: `prompt="capillary tube"`,
+  `confidence_threshold=0.5`
+- `/segment_12id_slit`: `prompt="slit"`, `confidence_threshold=0.5`
 
 ## Request Examples
 
