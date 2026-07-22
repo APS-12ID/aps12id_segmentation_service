@@ -61,6 +61,15 @@ overfitting to any one workflow.
   computing per-category IoU; saves `best.pt` on improvement. Reads
   hyperparameters from a YAML config; logs to MLflow when
   `MLFLOW_TRACKING_URI` is set.
+- `sweep.py` — runs `train.py` once for every Cartesian-product combination
+  in a sweep YAML. Sweep fields must also be present in the training config
+  and each value must be a list. Run it with:
+
+  ```bash
+  uv run python -m scripts.finetune.sweep \
+      --training-config train/config.yaml \
+      --sweep-config sweep/config.yaml
+  ```
 
 ## Annotation (Label Studio)
 
