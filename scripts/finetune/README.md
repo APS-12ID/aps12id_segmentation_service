@@ -61,6 +61,8 @@ overfitting to any one workflow.
   computing per-category IoU; saves `best.pt` on improvement. Reads
   hyperparameters from a YAML config; logs to MLflow when
   `MLFLOW_TRACKING_URI` is set.
+- `convert_checkpoint.py` — converts a checkpoint produced by `train.py` to
+  the model-key format expected by the segmentation server.
 - `sweep.py` — runs `train.py` once for every Cartesian-product combination
   in a sweep YAML. Sweep fields must also be present in the training config
   and each value must be a list. Run it with:
@@ -70,6 +72,26 @@ overfitting to any one workflow.
       --training-config train/config.yaml \
       --sweep-config sweep/config.yaml
   ```
+
+## Deploying a fine-tuned checkpoint
+
+Checkpoints produced by `train.py` contain direct model keys and training
+state, while the SAM3 server loader expects model keys prefixed with
+`detector.`. Convert a fine-tuned checkpoint before using it with the server:
+
+```bash
+uv run python -m scripts.finetune.convert_checkpoint \
+  checkpoints/finetuned.pt \
+  checkpoints/finetuned_server.pt
+```
+
+The command creates a new checkpoint containing only the model weights and
+leaves the source checkpoint unchanged. It refuses to overwrite an existing
+destination. Point the server to the converted file:
+
+```bash
+export SAM3_CHECKPOINT=/absolute/path/to/checkpoints/finetuned_server.pt
+```
 
 ## Annotation (Label Studio)
 
