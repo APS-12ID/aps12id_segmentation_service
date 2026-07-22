@@ -657,14 +657,20 @@ def _mlflow_run(args: TrainConfig):
         yield
 
 
-def _log_mlflow_losses(enabled: bool, train_loss: float, val_loss: float, epoch: int) -> None:
+def _log_mlflow_losses(
+    enabled: bool, train_loss: float, val_loss: float, best_val: float, epoch: int
+) -> None:
     if not enabled:
         return
 
     import mlflow
 
     mlflow.log_metrics(
-        {"train_loss": train_loss, "val_loss": val_loss},
+        {
+            "train_loss": train_loss, 
+            "val_loss": val_loss,
+            "best_val_loss": best_val,
+        },
         step=epoch,
     )
 
@@ -832,11 +838,11 @@ def _train(args: TrainConfig, log: logging.Logger) -> None:
         entry = {"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss, "elapsed_sec": elapsed}
         log.info("epoch %d/%d train=%.4f val=%.4f (%.1fs)", epoch + 1, args.epochs, train_loss, val_loss, elapsed)
         _append_metrics(args.out_dir, entry)
-        _log_mlflow_losses(args.enable_mlflow, train_loss, val_loss, epoch)
 
         is_best = val_loss < best_val
         if is_best:
             best_val = val_loss
+        _log_mlflow_losses(args.enable_mlflow, train_loss, val_loss, best_val, epoch)
 
         _save_checkpoint(args.out_dir / "last.pt", model, optimizer, epoch, val_loss, best_val)
         if (epoch + 1) % args.save_every == 0:
