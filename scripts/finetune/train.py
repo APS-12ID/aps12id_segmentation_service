@@ -838,6 +838,7 @@ def _train(args: TrainConfig, log: logging.Logger) -> None:
         entry = {"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss, "elapsed_sec": elapsed}
         log.info("epoch %d/%d train=%.4f val=%.4f (%.1fs)", epoch + 1, args.epochs, train_loss, val_loss, elapsed)
         _append_metrics(args.out_dir, entry)
+        _log_mlflow_losses(args.enable_mlflow, train_loss, val_loss, epoch)
 
         is_best = val_loss < best_val
         if is_best:
